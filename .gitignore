@@ -1,0 +1,45 @@
+# === Python ===
+__pycache__/
+*.py[cod]
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.env
+.env.*
+
+# Virtual envs
+.venv/
+venv/
+ENV/
+env/
+pip-wheel-metadata/
+
+# === Node.js ===
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# === IDEs & Editors ===
+.vscode/
+.idea/
+.DS_Store
+*.swp
+
+# === Logs & Artifacts ===
+*.log
+logs/
+*.out
+
+# === Test cache ===
+.cache/
+.tox/
+.pytest_cache/
+
+# === Misc ===
+__snapshots__/
+coverage/
+htmlcov/
+.mypy_cache/
