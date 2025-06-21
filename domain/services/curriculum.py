@@ -2,9 +2,7 @@ from domain.ports.llm_port import LLMPort
 from domain.ports.prompt_builder_port import PromptBuilderPort
 from domain.ports.parser_port import ParserPort
 from domain.services.qa import QAService
-from domain.models.task import Task
-from domain.models.event import Event
-from domain.models.observation import Observation
+from domain.models import Task, Event, Observation
 from typing import List
 
 class CurriculumService:
@@ -61,7 +59,6 @@ class CurriculumService:
             observation=observation,
         )
         llm_response = self._llm.chat([system_msg, user_msg])
-        print(llm_response)
         try:
             # parse LLM response to task proposal model
             task = self._parser.parse(llm_response)
@@ -88,7 +85,7 @@ class CurriculumService:
 if __name__ == "__main__":
 
     from infrastructure.adapters.llm.ollama_llm import LangchainOllamaLLM
-    from infrastructure.caches.chroma_qa_cache import ChromaQACache
+    from infrastructure.adapters.database.chroma_database import ChromaQACache
     from infrastructure.prompts.registry import get
     from infrastructure.parsers.task_parser import TaskParser
     from infrastructure.parsers.qa_question_parser import QAQuestionParser

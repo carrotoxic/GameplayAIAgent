@@ -1,7 +1,7 @@
 from domain.ports.llm_port import LLMPort
 from domain.ports.prompt_builder_port import PromptBuilderPort
 from domain.ports.parser_port import ParserPort
-from domain.ports.qa_cache_port import QACachePort
+from domain.ports.database_port import DatabasePort
 from domain.models.observation import Observation
 from domain.models.qa_entry import QAEntry
 
@@ -12,13 +12,13 @@ class QAService:
         question_prompt_builder: PromptBuilderPort,
         answer_prompt_builder: PromptBuilderPort,
         parser: ParserPort,
-        cache: QACachePort,
+        database: DatabasePort,
     ):
         self._llm = llm
         self._question_prompt_builder = question_prompt_builder
         self._answer_prompt_builder = answer_prompt_builder
         self._parser = parser
-        self._cache = cache
+        self._database = database
 
     def generate_context(self, observation: Observation) -> list[QAEntry]:
         """Return 'Question / Answer' lines to insert into the prompt."""
@@ -34,8 +34,8 @@ class QAService:
     def generate_questions(self, observation: Observation) -> list[str]:
         """Generate questions based on the observation."""
         system_msg, user_msg = self._question_prompt_builder.build_prompt(observation=observation)
-        questions_txt = self._llm.chat([system_msg, user_msg])
-        questions = self._parser.parse(questions_txt)
+        llm_response = self._llm.chat([system_msg, user_msg])
+        questions = self._parser.parse(llm_response.content)
 
         return questions
     
@@ -44,13 +44,14 @@ class QAService:
         """Generate answers for each question."""
         qa_entries: list[QAEntry] = []
         for question in questions:
-            cached = self._cache.lookup(question)
+            cached = self._database.lookup(question)
             if cached:
                 answer = cached
             else:
                 system_msg, user_msg = self._answer_prompt_builder.build_prompt(question=question)
-                answer = self._llm.chat([system_msg, user_msg])
-                self._cache.store(question, answer)
+                llm_response = self._llm.chat([system_msg, user_msg])
+                answer = llm_response.content
+                self._database.store(texts=[question], metadatas=[{"question": question}])
             qa_entries.append(QAEntry(question=question, answer=answer))
         return qa_entries
 
@@ -58,7 +59,7 @@ if __name__ == "__main__":
 
     from infrastructure.adapters.llm.ollama_llm import LangchainOllamaLLM
     from infrastructure.prompts.registry import get
-    from infrastructure.caches.chroma_qa_cache import ChromaQACache
+    from infrastructure.adapters.database.chroma_database import ChromaDatabase
     from domain.models.event import Event
     from domain.models.task import Task
     import infrastructure.prompts.builders.qa_question_prompt_builder
@@ -71,7 +72,7 @@ if __name__ == "__main__":
         question_prompt_builder=get("qa_question"),
         answer_prompt_builder=get("qa_answer"),
         parser=QAQuestionParser(),
-        cache=ChromaQACache(),
+        database=ChromaDatabase(collection_name="qa_cache"),
     )
 
     event = Event(

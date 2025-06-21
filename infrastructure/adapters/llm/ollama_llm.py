@@ -10,10 +10,10 @@ class LangchainOllamaLLM(LLMPort):
     def __init__(self, model_name: str = "llama3"):
         self.llm = ChatOllama(model=model_name)
 
-    def chat(self, messages: Sequence[Message]) -> str:
+    def chat(self, messages: Sequence[Message]) -> Message:
         langchain_messages = [self._to_langchain(message) for message in messages]
         response = self.llm.invoke(langchain_messages)
-        return response.content
+        return Message(role="assistant", content=response.content)
 
     def _to_langchain(self, m: Message):
         if m.role == "system":
