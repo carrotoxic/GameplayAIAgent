@@ -15,7 +15,7 @@ class AgentController:
         self._skill_service = skill_service
         self._env = env
 
-    def run(self, max_tries: int = 5):
+    def run(self, max_tries_per_task: int = 5):
         agent_state = self._env.reset()
         
         # continue to generate task until manually stopped
@@ -26,28 +26,25 @@ class AgentController:
             try_count = 0
             success = False
             code_snippet = None
-            environment_feedback = None
-            execution_error = None
+            observation = None
             critique = None
             
-            while try_count < max_tries and not success:
-                skillset = self._skill_service.get_skillset(
-                    task, 
-                    environment_feedback
+            while try_count < max_tries_per_task and not success:
+                skillset = self._skill_service.retrieve_skillset(
+                    observation,
+                    task
                 )
                 
                 code_snippet = self._planner_service.generate_code(
-                    task,
+                    skillset,
                     code_snippet,
-                    environment_feedback,
-                    execution_error,
-                    critique,
-                    skillset
+                    observation,
+                    task,
+                    critique
                 )
     
                 (agent_state,
-                 environment_feedback,
-                 execution_error
+                 observation,
                 ) = self._env.step(code_snippet)
 
                 success, critique = self._critic_service.evaluate(

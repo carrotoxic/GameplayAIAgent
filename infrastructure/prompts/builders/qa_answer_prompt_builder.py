@@ -1,7 +1,6 @@
 from __future__ import annotations
 from infrastructure.prompts.builders._base import _BasePromptBuilder
 from domain.models.message import Message
-from domain.models.observation import Observation
 from infrastructure.prompts.utils import load_prompt
 from infrastructure.prompts.registry import register
 

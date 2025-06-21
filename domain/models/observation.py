@@ -1,4 +1,3 @@
-# domain/models/observation.py
 from dataclasses import dataclass
 
 @dataclass(frozen=True)

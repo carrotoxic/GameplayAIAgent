@@ -1,11 +1,11 @@
 from __future__ import annotations
 from abc import ABC, abstractmethod
-from typing import Tuple, Protocol
+from typing import Tuple
 from domain.models.message import Message
 
 SystemAndUserMsg = Tuple[Message, Message]
 
-class PromptBuilderPort(Protocol):
+class PromptBuilderPort(ABC):
     """
     Hexagonal *outbound* port for building any style of prompts.
     """
