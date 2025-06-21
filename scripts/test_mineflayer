@@ -1,0 +1,26 @@
+from javascript import require, once
+import random
+
+# Mineflayerライブラリと関連パッケージを読み込む
+mineflayer = require('mineflayer')
+
+# ランダムなBot名を生成
+bot_name = f"pybot_{random.randint(1000,9999)}"
+
+# Botを作成し、PrismarineJSのテストサーバーへ接続
+bot = mineflayer.createBot({
+    'host': 'pjs.deptofcraft.com',
+    'port': 25565,
+    'username': bot_name
+})
+
+# loginイベントを待ってからチャット
+once(bot, 'login')
+print(f"✅ Bot {bot_name} has logged in.")
+bot.chat("Hello from Python!")
+
+# Botの現在位置を取得して表示
+print("📍 Position:", bot.entity.position)
+
+# 切断（任意）
+# bot.quit()
