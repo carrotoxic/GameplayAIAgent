@@ -8,19 +8,19 @@ SystemAndUserMsg = Tuple[Message, Message]
 
 class _BasePromptBuilder(PromptBuilderPort, ABC):
     """
-    (1) Observation -> (2) system -> (3) user
+    (1) Variables -> (2) system -> (3) user
     Hooks to implement each variation.
     """
 
     # ----------------- final method -----------------
     def build_prompt(self, **kw) -> SystemAndUserMsg:
-        sys_msg = self._system_header()
+        sys_msg = self._system_header(**kw)
         user_msg = self._compose_user(**kw)
         return sys_msg, user_msg
 
     # ----------------- hooks --------------------------
     @abstractmethod
-    def _system_header(self) -> Message: ...
+    def _system_header(self, **kw) -> Message: ...
 
     @abstractmethod
     def _compose_user(

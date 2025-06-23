@@ -11,7 +11,7 @@ from infrastructure.prompts.registry import register
 class CurriculumPromptBuilder(_BasePromptBuilder):
     """CurriculumService uses this prompt builder"""
 
-    def _system_header(self) -> Message:
+    def _system_header(self, **kw) -> Message:
         return Message(
             role="system",
             content=load_prompt("curriculum", "base")
@@ -34,10 +34,14 @@ class CurriculumPromptBuilder(_BasePromptBuilder):
         )
 
 
+
+# ------------------------------------------------------------
+# Test
+# ------------------------------------------------------------
 if __name__ == "__main__":
     from domain.models.event import Event
     from domain.models.task import Task
-    from infrastructure.prompts.builders.minecraft_observation_builder import MinecraftObservationBuilder
+    from infrastructure.adapters.game.minecraft.minecraft_observation_builder import MinecraftObservationBuilder
 
     curriculum_builder = CurriculumPromptBuilder()
     obs_builder = MinecraftObservationBuilder()
@@ -57,8 +61,8 @@ if __name__ == "__main__":
     )
 
     tasks = [
-        Task(task="Mine 1 wood log", reasoning="Need wood", context="Tutorial"),
-        Task(task="Craft wooden pickaxe", reasoning="Need tool", context="Early-game crafting"),
+        Task(command="Mine 1 wood log", reasoning="Need wood", context="Tutorial"),
+        Task(command="Craft wooden pickaxe", reasoning="Need tool", context="Early-game crafting"),
     ]
 
     qa_entries = [

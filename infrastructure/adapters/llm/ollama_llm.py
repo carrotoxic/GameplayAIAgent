@@ -2,7 +2,7 @@ from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 from langchain_ollama import ChatOllama
 
 from domain.ports.llm_port import LLMPort
-from domain.models.message import Message
+from domain.models import Message
 from typing import Sequence
 
 

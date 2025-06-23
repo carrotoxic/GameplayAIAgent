@@ -8,7 +8,7 @@ from infrastructure.prompts.registry import register
 class QAPromptBuilder(_BasePromptBuilder):
     """QAService uses this prompt builder"""
 
-    def _system_header(self) -> Message:
+    def _system_header(self, **kw) -> Message:
         return Message(
             role="system",
             content=load_prompt("curriculum", "qa_answer")
@@ -24,6 +24,9 @@ class QAPromptBuilder(_BasePromptBuilder):
         )
 
 
+# ------------------------------------------------------------
+# Test
+# ------------------------------------------------------------
 if __name__ == "__main__":
     qa_builder = QAPromptBuilder()
 

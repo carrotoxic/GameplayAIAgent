@@ -1,7 +1,7 @@
 from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Tuple
-from domain.models.message import Message
+from domain.models import Message
 
 SystemAndUserMsg = Tuple[Message, Message]
 

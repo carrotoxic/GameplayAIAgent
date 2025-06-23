@@ -1,5 +1,5 @@
 from typing import List
-from domain.ports import LLMPort, ParserPort, DatabasePort, PromptBuilderPort
+from domain.ports import LLMPort, DatabasePort, PromptBuilderPort
 from domain.models import Skill, Task
 
 class SkillService:
@@ -17,16 +17,14 @@ class SkillService:
         self,
         llm: LLMPort,
         skill_description_prompt_builder: PromptBuilderPort,
-        parser: ParserPort,
         database: DatabasePort,
-        retrieval_top_k: int = 5,
+        retrieval_top_k: int = 5
     ):
         self._llm = llm
         self._skill_description_prompt_builder = skill_description_prompt_builder
-        self._parser = parser
         self._database = database
         self._retrieval_top_k = retrieval_top_k
-
+        
         self.skills = {}
 
     def add_skill(self, skill: Skill) -> None:
@@ -63,6 +61,8 @@ class SkillService:
         )
         llm_response = self._llm.chat([system_msg, user_msg])
         return llm_response.content
+    
+
 
 # ------------------------------------------------------------
 # Test
@@ -72,7 +72,6 @@ if __name__ == "__main__":
     from infrastructure.adapters.llm.ollama_llm import LangchainOllamaLLM
     from infrastructure.adapters.database.chroma_database import ChromaDatabase
     from infrastructure.prompts.registry import get
-    from infrastructure.parsers.task_parser import TaskParser
     import infrastructure.prompts.builders.skill_description_prompt_builder
 
     skill = Skill(
@@ -84,8 +83,14 @@ if __name__ == "__main__":
     skill_service = SkillService(
         llm=LangchainOllamaLLM(),
         skill_description_prompt_builder=get("skill_description"),
-        parser=TaskParser(),
         database=ChromaDatabase(collection_name="skill_library"),
+        primitive_skills=[
+            Skill(
+                name="mineWoodLog",
+                code="async function mineWoodLog(bot) {\n  const woodLogNames = [\"oak_log\", \"birch_log\", \"spruce_log\", \"jungle_log\", \"acacia_log\", \"dark_oak_log\", \"mangrove_log\"];\n\n  // Find a wood log block\n  const woodLogBlock = await exploreUntil(bot, new Vec3(1, 0, 1), 60, () => {\n    return bot.findBlock({\n      matching: block => woodLogNames.includes(block.name),\n      maxDistance: 32\n    });\n  });\n  if (!woodLogBlock) {\n    bot.chat(\"Could not find a wood log.\");\n    return;\n  }\n\n  // Mine the wood log block\n  await mineBlock(bot, woodLogBlock.name, 1);\n  bot.chat(\"Wood log mined.\");\n}",
+                description="async function mineWoodLog(bot) {\n    // The function is about mining a single wood log block. It searches for a wood log block by exploring the environment until it finds one of the seven types of wood logs. If a wood log block is found, it is mined and a success message is sent. If no wood log block is found, a failure message is sent.\n}",
+            ),
+        ],
     )
 
     skill_service.add_skill(skill)

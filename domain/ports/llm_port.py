@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import Sequence
-from domain.models.message import Message
+from domain.models import Message
 
 class LLMPort(ABC):
     """Hexagonal *outbound* port for any chat-style LLM."""

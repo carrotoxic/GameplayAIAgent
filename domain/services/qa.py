@@ -64,7 +64,7 @@ if __name__ == "__main__":
     from domain.models.task import Task
     import infrastructure.prompts.builders.qa_question_prompt_builder
     import infrastructure.prompts.builders.qa_answer_prompt_builder
-    from infrastructure.prompts.builders.minecraft_observation_builder import MinecraftObservationBuilder
+    from infrastructure.adapters.game.minecraft.minecraft_observation_builder import MinecraftObservationBuilder
     from infrastructure.parsers.qa_question_parser import QAQuestionParser
 
     qa_service = QAService(
@@ -90,8 +90,8 @@ if __name__ == "__main__":
     )
 
     tasks = [
-        Task(task="Mine 1 wood log", reasoning="Need wood", context="Tutorial"),
-        Task(task="Craft wooden pickaxe", reasoning="Need tool", context="Early-game crafting"),
+        Task(command="Mine 1 wood log", reasoning="Need wood", context="Tutorial"),
+        Task(command="Craft wooden pickaxe", reasoning="Need tool", context="Early-game crafting"),
     ]
 
     obs_builder = MinecraftObservationBuilder()
