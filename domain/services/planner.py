@@ -31,14 +31,9 @@ class PlannerService:
         )
 
         llm_response = self._llm.chat([system_msg, user_msg])
-        try:
-            # parse LLM response to code snippet
-            next_code_snippet = self._parser.parse(llm_response.content)
-            return next_code_snippet
-        except Exception as exc:
-            raise Exception("Failed to parse LLM reply") from exc
+        next_code_snippet = self._parser.parse(llm_response.content)
+        return next_code_snippet
 
-        
     
 # ------------------------------------------------------------
 # Test
@@ -48,8 +43,8 @@ if __name__ == "__main__":
     from infrastructure.adapters.game.minecraft.minecraft_observation_builder import MinecraftObservationBuilder
     from infrastructure.prompts.registry import get
     from infrastructure.parsers import JSParser
-    import infrastructure.prompts.builders.planner_prompt_builder
     from domain.models import Event
+    import infrastructure.prompts.builders.planner_prompt_builder
 
     planner = PlannerService(
         llm=LangchainOllamaLLM(),

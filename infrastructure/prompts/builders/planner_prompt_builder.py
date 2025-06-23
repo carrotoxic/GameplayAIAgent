@@ -45,4 +45,3 @@ class PlannerPromptBuilder(_BasePromptBuilder):
                 f"Critique: {critique.description}"
             )
         )
-

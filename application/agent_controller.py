@@ -41,9 +41,11 @@ class AgentController:
             
             # continue to generate code snippet until the task is completed or failed for max tries
             while try_count < max_tries_per_task and not success:
+                # retrieve the skillset relevant to the current task
                 retrieved_skillset = self._skill_service.retrieve_skillset(task)
                 skillset_context = primitive_skillset_usage + retrieved_skillset
                 
+                # llm generate execution code based on the current situation
                 code_snippet = self._planner_service.generate_code(
                     skillset_context,
                     code_snippet,
@@ -52,13 +54,14 @@ class AgentController:
                     critique
                 )
     
+                # execute the code snippet using both primitive skills and retrieved skills
                 helper_functions = primitive_skillset_definitions + retrieved_skillset
                 observation = self._env.step(code_snippet, helper_functions)
 
-                success, critique = self._critic_service.evaluate(
-                    task,
-                    observation,
-                )
+                # llm decide if the task is successful or not, and provide a critique
+                critique_result = self._critic_service.evaluate(observation, task)
+                success = critique_result.success
+                critique = critique_result.description
 
                 try_count += 1
 

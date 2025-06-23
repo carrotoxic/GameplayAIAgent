@@ -33,8 +33,8 @@ class CurriculumService:
         self._curriculum_prompt_builder = curriculum_prompt_builder
         self._parser = parser
         # self._warmup = warmup_thresholds
-        self._completed: List[Task] = []
-        self._failed: List[Task] = []
+        self._completed_tasks: List[Task] = []
+        self._failed_tasks: List[Task] = []
 
     def next_task(
         self, event: Event) -> Task:
@@ -46,17 +46,17 @@ class CurriculumService:
         # convert raw event to observation
         observation: Observation = self._observation_builder.build(
             event=event,
-            completed=self._completed,
-            failed=self._failed,
         )
 
         # generate game related question and answer as context
-        qa_entries = self._qa.generate_context(observation)
+        qa_entries = self._qa.generate_context(observation, self._completed_tasks, self._failed_tasks)
         
         # build final prompt and send to LLM
         system_msg, user_msg = self._curriculum_prompt_builder.build_prompt(
             qa_entries=qa_entries,
             observation=observation,
+            completed_tasks=self._completed_tasks,
+            failed_tasks=self._failed_tasks,
         )
         llm_response = self._llm.chat([system_msg, user_msg])
         try:
@@ -69,14 +69,14 @@ class CurriculumService:
 
     # store result of previous task
     def add_completed_task(self, task: Task) -> None:
-        self._completed.append(task)
-        if task in self._failed:
-            self._failed.remove(task)
+        self._completed_tasks.append(task)
+        if task in self._failed_tasks:
+            self._failed_tasks.remove(task)
 
     def add_failed_task(self, task: Task) -> None:
-        self._failed.append(task)
-        if task in self._completed:
-            self._completed.remove(task)
+        self._failed_tasks.append(task)
+        if task in self._completed_tasks:
+            self._completed_tasks.remove(task)
 
 
 # ------------------------------------------------------------
@@ -105,7 +105,7 @@ if __name__ == "__main__":
         time="day",
         other_blocks="iron_ore",
         equipment={"helmet": "leather_helmet"},
-        chests="Chest 1: iron_ingot: 8",
+        chests={"Chest 1": "iron_ingot: 8", "Chest 2": "iron_ingot: 8"},
     )
     
     qa_service = QAService(

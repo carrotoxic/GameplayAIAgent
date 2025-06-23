@@ -1,9 +1,8 @@
 from __future__ import annotations
 import re
-from typing import List
 
 from domain.ports.observation_builder_port import ObservationBuilderPort
-from domain.models import Observation, Event, Task
+from domain.models import Observation, Event
 
 class MinecraftObservationBuilder(ObservationBuilderPort):
     """Adapter for converting Mineflayer's observation to Domain `Observation`."""
@@ -11,13 +10,7 @@ class MinecraftObservationBuilder(ObservationBuilderPort):
     # ------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------
-    def build(
-        self,
-        *,
-        event: Event,
-        completed: List[Task],
-        failed: List[Task],
-    ) -> Observation:
+    def build(self, *,event: Event) -> Observation:
         # --------- format basic fields ------------------------
         inv_text = (
             f"Inventory ({len(event.inventory)}/36): "
@@ -25,24 +18,18 @@ class MinecraftObservationBuilder(ObservationBuilderPort):
         )
 
         obs = Observation(
-            context="",                             # 後で QA で追記しても良い
-            biome=f"Biome: {event.biome}",
-            time=f"Time: {event.time}",
-            nearby_blocks=f"Nearby blocks: {', '.join(event.nearby_blocks) or 'None'}",
-            other_blocks=f"Other blocks: {event.other_blocks or 'None'}",
-            nearby_entities=f"Nearby entities: {event.nearby_entities or 'None'}",
-            health=f"Health: {event.health:.1f}/20",
-            hunger=f"Hunger: {event.hunger:.1f}/20",
-            position=(
-                f"Position: x={event.position['x']:.1f}, "
-                f"y={event.position['y']:.1f}, "
-                f"z={event.position['z']:.1f}"
-            ),
-            equipment=f"Equipment: {event.equipment}",
+            biome=event.biome,
+            time=event.time,
+            nearby_blocks=', '.join(event.nearby_blocks) or 'None',
+            other_blocks=event.other_blocks or 'None',
+            nearby_entities=event.nearby_entities or 'None',
+            health=f"{event.health:.1f}/20",
+            hunger=f"{event.hunger:.1f}/20",
+            position=event.position,
+            equipment=event.equipment,
             inventory=inv_text,
+            # TODO: ここのchestsのフォーマットを修正する
             chests=event.chests,
-            completed_tasks="\n".join(t.command for t in completed),
-            failed_tasks="\n".join(t.command for t in failed),
         )
 
         # TODO: add warmup filtering
@@ -73,12 +60,7 @@ if __name__ == "__main__":
         time="day",
         other_blocks="iron_ore",
         equipment={"helmet": "leather_helmet"},
-        chests="Chest 1: iron_ingot: 8",
+        chests={"Chest 1": "iron_ingot: 8", "Chest 2": "iron_ingot: 8"},
     )
 
-    tasks = [
-        Task(command="Mine 1 wood log", reasoning="Need wood", context="Tutorial"),
-        Task(command="Craft wooden pickaxe", reasoning="Need tool", context="Early-game crafting"),
-    ]
-
-    print(builder.build(event=event, completed=tasks[:1], failed=tasks[1:]))
+    print(builder.build(event=event))
