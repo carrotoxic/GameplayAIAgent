@@ -61,7 +61,7 @@ class CurriculumService:
         llm_response = self._llm.chat([system_msg, user_msg])
         try:
             # parse LLM response to task proposal model
-            task = self._parser.parse(llm_response)
+            task = self._parser.parse(llm_response.content)
             task.context = qa_entries
             return task
         except Exception as exc:
@@ -85,11 +85,11 @@ class CurriculumService:
 if __name__ == "__main__":
 
     from infrastructure.adapters.llm.ollama_llm import LangchainOllamaLLM
-    from infrastructure.adapters.database.chroma_database import ChromaQACache
+    from infrastructure.adapters.database.chroma_database import ChromaDatabase
     from infrastructure.prompts.registry import get
     from infrastructure.parsers.task_parser import TaskParser
     from infrastructure.parsers.qa_question_parser import QAQuestionParser
-    from infrastructure.prompts.builders.minecraft_observation_builder import MinecraftObservationBuilder
+    from infrastructure.adapters.game.minecraft.minecraft_observation_builder import MinecraftObservationBuilder
     import infrastructure.prompts.builders.qa_question_prompt_builder
     import infrastructure.prompts.builders.qa_answer_prompt_builder
     import infrastructure.prompts.builders.curriculum_prompt_builder
@@ -113,7 +113,7 @@ if __name__ == "__main__":
         question_prompt_builder=get("qa_question"),
         answer_prompt_builder=get("qa_answer"),
         parser=QAQuestionParser(),
-        cache=ChromaQACache(),
+        database=ChromaDatabase(collection_name="qa_cache"),
     )
 
     observation_builder = MinecraftObservationBuilder()

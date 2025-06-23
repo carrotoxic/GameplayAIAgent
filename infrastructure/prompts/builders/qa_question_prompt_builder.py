@@ -9,7 +9,7 @@ from infrastructure.prompts.registry import register
 class QAPromptBuilder(_BasePromptBuilder):
     """QAService uses this prompt builder"""
 
-    def _system_header(self) -> Message:
+    def _system_header(self, **kw) -> Message:
         return Message(
             role="system",
             content=load_prompt("curriculum", "qa_question")
@@ -25,10 +25,14 @@ class QAPromptBuilder(_BasePromptBuilder):
         )
 
 
+
+# ------------------------------------------------------------
+# Test
+# ------------------------------------------------------------
 if __name__ == "__main__":
     from domain.models.event import Event
     from domain.models.task import Task
-    from infrastructure.prompts.builders.minecraft_observation_builder import MinecraftObservationBuilder
+    from infrastructure.adapters.game.minecraft.minecraft_observation_builder import MinecraftObservationBuilder
 
     qa_builder = QAPromptBuilder()
     obs_builder = MinecraftObservationBuilder()

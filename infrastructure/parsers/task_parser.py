@@ -2,7 +2,7 @@ from __future__ import annotations
 import re
 from typing import List
 from domain.ports.parser_port import ParserPort
-from domain.models.task import Task
+from domain.models import Task
 
 _REASONING_LINE = re.compile(r"^\s*Reasoning\s*:\s*(.+?)\s*$")
 _TASK_LINE = re.compile(r"^\s*Task\s*:\s*(.+?)\s*$")
@@ -25,7 +25,7 @@ class TaskParser(ParserPort):
                 reasoning = _REASONING_LINE.match(line).group(1).strip()
             if _TASK_LINE.match(line):
                 task = _TASK_LINE.match(line).group(1).strip()
-        return Task(task=task, reasoning=reasoning, context="")
+        return Task(command=task, reasoning=reasoning, context="")
 
 
 if __name__ == "__main__":

@@ -9,7 +9,7 @@ from infrastructure.prompts.registry import register
 class SkillDescriptionPromptBuilder(_BasePromptBuilder):
     """SkillService uses this prompt builder to generate a description for a skill"""
 
-    def _system_header(self) -> Message:
+    def _system_header(self, **kw) -> Message:
         return Message(
             role="system",
             content=load_prompt("skill", "description")

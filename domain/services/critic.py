@@ -1,5 +1,5 @@
 from domain.ports import LLMPort, ParserPort, PromptBuilderPort
-from domain.models import Event, Context, Intention, Critique
+from domain.models import Event, Task, Critique, Observation
 
 class CriticService:
     """
@@ -22,8 +22,8 @@ class CriticService:
         self._prompt_builder = prompt_builder
         self._parser = parser
 
-    def evaluate(self, intention: Intention, result: Event, context: Context) -> Critique:
-        system_msg, user_msg = self._prompt_builder.build_prompt(intention, result, context)
+    def evaluate(self, task: Task, agent_state: Event, observation: Observation) -> Critique:
+        system_msg, user_msg = self._prompt_builder.build_prompt(task, agent_state, observation)
         llm_response = self._llm.chat([system_msg, user_msg])
         try:
             critique_meta = self._parser.extract_critique(llm_response)
