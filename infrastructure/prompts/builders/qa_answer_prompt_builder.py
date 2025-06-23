@@ -1,6 +1,6 @@
 from __future__ import annotations
 from infrastructure.prompts.builders._base import _BasePromptBuilder
-from domain.models.message import Message
+from domain.models import Message
 from infrastructure.prompts.utils import load_prompt
 from infrastructure.prompts.registry import register
 
@@ -14,10 +14,8 @@ class QAPromptBuilder(_BasePromptBuilder):
             content=load_prompt("curriculum", "qa_answer")
         )
 
-    def _compose_user(
-        self,
-        question: str,
-    ) -> Message:
+    def _compose_user(self, **kw) -> Message:
+        question = kw['question']
         return Message(
             role="user",
             content=f"{question}"

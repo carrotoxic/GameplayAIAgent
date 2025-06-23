@@ -2,8 +2,8 @@ from domain.ports.llm_port import LLMPort
 from domain.ports.prompt_builder_port import PromptBuilderPort
 from domain.ports.parser_port import ParserPort
 from domain.ports.database_port import DatabasePort
-from domain.models.observation import Observation
-from domain.models.qa_entry import QAEntry
+from domain.models import Observation, QAEntry, Task
+from typing import List
 
 class QAService:
     def __init__(
@@ -20,10 +20,10 @@ class QAService:
         self._parser = parser
         self._database = database
 
-    def generate_context(self, observation: Observation) -> list[QAEntry]:
+    def generate_context(self, observation: Observation, completed_tasks: List[Task], failed_tasks: List[Task]) -> list[QAEntry]:
         """Return 'Question / Answer' lines to insert into the prompt."""
         # step1: generate questions
-        questions = self.generate_questions(observation)
+        questions = self.generate_questions(observation, completed_tasks, failed_tasks)
 
         # step2: generate answers
         qa_entries = self.generate_answers(questions)
@@ -31,9 +31,9 @@ class QAService:
         # step3: return qa_entries
         return qa_entries
 
-    def generate_questions(self, observation: Observation) -> list[str]:
+    def generate_questions(self, observation: Observation, completed_tasks: List[Task], failed_tasks: List[Task]) -> list[str]:
         """Generate questions based on the observation."""
-        system_msg, user_msg = self._question_prompt_builder.build_prompt(observation=observation)
+        system_msg, user_msg = self._question_prompt_builder.build_prompt(observation=observation, completed_tasks=completed_tasks, failed_tasks=failed_tasks)
         llm_response = self._llm.chat([system_msg, user_msg])
         questions = self._parser.parse(llm_response.content)
 
@@ -60,8 +60,7 @@ if __name__ == "__main__":
     from infrastructure.adapters.llm.ollama_llm import LangchainOllamaLLM
     from infrastructure.prompts.registry import get
     from infrastructure.adapters.database.chroma_database import ChromaDatabase
-    from domain.models.event import Event
-    from domain.models.task import Task
+    from domain.models import Event, Task
     import infrastructure.prompts.builders.qa_question_prompt_builder
     import infrastructure.prompts.builders.qa_answer_prompt_builder
     from infrastructure.adapters.game.minecraft.minecraft_observation_builder import MinecraftObservationBuilder
@@ -86,7 +85,7 @@ if __name__ == "__main__":
         time="day",
         other_blocks="iron_ore",
         equipment={"helmet": "leather_helmet"},
-        chests="Chest 1: iron_ingot: 8",
+        chests={"Chest 1": "iron_ingot: 8", "Chest 2": "iron_ingot: 8"},
     )
 
     tasks = [
@@ -95,9 +94,9 @@ if __name__ == "__main__":
     ]
 
     obs_builder = MinecraftObservationBuilder()
-    obs = obs_builder.build(event=event, completed=tasks[:1], failed=tasks[1:])
+    obs = obs_builder.build(event=event)    
 
-    questions = qa_service.generate_questions(obs)
+    questions = qa_service.generate_questions(obs, tasks[:1], tasks[1:])
     print(questions) 
     answers = qa_service.generate_answers(questions)
     print(answers)

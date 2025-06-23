@@ -22,14 +22,44 @@ class CriticService:
         self._prompt_builder = prompt_builder
         self._parser = parser
 
-    def evaluate(self, task: Task, agent_state: Event, observation: Observation) -> Critique:
-        system_msg, user_msg = self._prompt_builder.build_prompt(task, agent_state, observation)
+    def evaluate(self, observation: Observation, task: Task) -> Critique:
+        system_msg, user_msg = self._prompt_builder.build_prompt(observation=observation, task=task)
         llm_response = self._llm.chat([system_msg, user_msg])
-        try:
-            critique_meta = self._parser.extract_critique(llm_response)
-            assert critique_meta.success in [True, False]
-        except Exception as exc:
-            raise CriticError("Failed to parse LLM reply") from exc
-        return Critique(success=critique_meta.success,
-                        critique=critique_meta.critique)
-                        
+        critique = self._parser.parse(llm_response.content)
+        return critique
+
+
+# ------------------------------------------------------------
+# Test
+# ------------------------------------------------------------
+if __name__ == "__main__":
+    from domain.models import Task, Observation
+    from infrastructure.adapters.llm.ollama_llm import LangchainOllamaLLM
+    from infrastructure.prompts.registry import get
+    from infrastructure.parsers import CriticParser
+    import infrastructure.prompts.builders.critic_prompt_builder
+
+    task = Task(command="Mine 1 gold log", reasoning="Need gold", context="Tutorial")
+
+    observation = Observation(
+        position={"x": 10.5, "y": 64.0, "z": -5.2},
+        inventory={"oak_log": 3, "wooden_pickaxe": 1},
+        health=18.5,
+        hunger=15.0,
+        biome="forest",
+        nearby_blocks=["grass", "dirt", "stone", "oak_log"],
+        nearby_entities={"cow": 5.0},
+        time="day",
+        other_blocks="iron_ore",
+        equipment={"helmet": "leather_helmet"},
+        chests={"Chest 1": "iron_ingot: 8", "Chest 2": "iron_ingot: 8"},
+    )
+
+    critic_service = CriticService(
+        llm=LangchainOllamaLLM(),
+        prompt_builder=get("critic"),
+        parser=CriticParser()
+    )
+
+    critique = critic_service.evaluate(observation, task)
+    print(critique)

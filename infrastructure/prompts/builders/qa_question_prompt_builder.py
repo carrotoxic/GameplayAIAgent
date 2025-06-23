@@ -1,9 +1,9 @@
 from __future__ import annotations
 from infrastructure.prompts.builders._base import _BasePromptBuilder
-from domain.models.message import Message
-from domain.models.observation import Observation
+from domain.models import Task, Observation, Message
 from infrastructure.prompts.utils import load_prompt
 from infrastructure.prompts.registry import register
+from typing import List
 
 @register("qa_question")
 class QAPromptBuilder(_BasePromptBuilder):
@@ -15,13 +15,16 @@ class QAPromptBuilder(_BasePromptBuilder):
             content=load_prompt("curriculum", "qa_question")
         )
 
-    def _compose_user(
-        self,
-        observation: Observation,
-    ) -> Message:
+    def _compose_user(self, **kw) -> Message:
+        observation = kw['observation']
+        completed_tasks = kw['completed_tasks']
+        failed_tasks = kw['failed_tasks']
+
         return Message(
             role="user",
-            content=f"{observation}"
+            content=f"{observation}\n\n"
+            f"Completed tasks: {', '.join(task.command for task in completed_tasks)}\n\n"
+            f"Failed tasks: {', '.join(task.command for task in failed_tasks)}"
         )
 
 
@@ -30,8 +33,7 @@ class QAPromptBuilder(_BasePromptBuilder):
 # Test
 # ------------------------------------------------------------
 if __name__ == "__main__":
-    from domain.models.event import Event
-    from domain.models.task import Task
+    from domain.models import Event, Task
     from infrastructure.adapters.game.minecraft.minecraft_observation_builder import MinecraftObservationBuilder
 
     qa_builder = QAPromptBuilder()
@@ -48,17 +50,17 @@ if __name__ == "__main__":
         time="day",
         other_blocks="iron_ore",
         equipment={"helmet": "leather_helmet"},
-        chests="Chest 1: iron_ingot: 8",
+        chests={"Chest 1": "iron_ingot: 8", "Chest 2": "iron_ingot: 8"},
     )
 
     tasks = [
-        Task(task="Mine 1 wood log", reasoning="Need wood", context="Tutorial"),
-        Task(task="Craft wooden pickaxe", reasoning="Need tool", context="Early-game crafting"),
+        Task(command="Mine 1 wood log", reasoning="Need wood", context="Tutorial"),
+        Task(command="Craft wooden pickaxe", reasoning="Need tool", context="Early-game crafting"),
     ]
 
-    obs = obs_builder.build(event=event, completed=tasks[:1], failed=tasks[1:])
+    obs = obs_builder.build(event=event)
 
-    sys_msg, user_msg = qa_builder.build_prompt(observation=obs)
+    sys_msg, user_msg = qa_builder.build_prompt(observation=obs, completed_tasks=tasks[:1], failed_tasks=tasks[1:])
     print("-------system message-------")
     print(sys_msg)
     print("-------user message-------")
