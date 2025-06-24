@@ -1,10 +1,8 @@
 from dataclasses import dataclass
+from typing import Optional
 
 @dataclass
 class Skill:
     name: str
     code: str
-    description: str
-
-    def __str__(self) -> str:
-        return f"code={self.code}, description={self.description}"
+    description: Optional[str] = None

@@ -1,5 +1,5 @@
 from domain.ports import LLMPort, ParserPort, PromptBuilderPort
-from domain.models import Skill, Task, Observation, Critique
+from domain.models import Skill, Task, Observation, CodeSnippet
 
 class PlannerService:
     """
@@ -16,12 +16,14 @@ class PlannerService:
                  llm: LLMPort, 
                  prompt_builder: PromptBuilderPort, 
                  parser: ParserPort,
+                 max_code_generation_tries: int = 3,
                  ):
         self._llm = llm
         self._prompt_builder = prompt_builder
         self._parser = parser
+        self._max_code_generation_tries = max_code_generation_tries
 
-    def generate_code(self, skillset: list[Skill], code_snippet: str, observation: Observation, task: Task, critique: Critique) -> str:
+    def generate_code(self, skillset: list[Skill], code_snippet: CodeSnippet, observation: Observation, task: Task, critique: str) -> CodeSnippet:
         system_msg, user_msg = self._prompt_builder.build_prompt(
             skillset=skillset,
             code_snippet=code_snippet,
@@ -30,9 +32,15 @@ class PlannerService:
             critique=critique,
         )
 
-        llm_response = self._llm.chat([system_msg, user_msg])
-        next_code_snippet = self._parser.parse(llm_response.content)
-        return next_code_snippet
+        for try_count in range(self._max_code_generation_tries):
+            llm_response = self._llm.chat([system_msg, user_msg])
+            next_code_snippet = self._parser.parse(llm_response.content)
+            if next_code_snippet:
+                return next_code_snippet
+            else:
+                print(f"PlannerService: code snippet generation failed, try {try_count + 1} of {self._max_code_generation_tries}")
+                continue
+        return None
 
     
 # ------------------------------------------------------------
@@ -44,11 +52,10 @@ if __name__ == "__main__":
     from infrastructure.prompts.registry import get
     from infrastructure.parsers import JSParser
     from domain.models import Event
-    import infrastructure.prompts.builders.planner_prompt_builder
 
     planner = PlannerService(
         llm=LangchainOllamaLLM(),
-        prompt_builder=get("planner"),
+        prompt_builder=get("minecraft", "planner"),
         parser=JSParser(),
     )
 
@@ -90,10 +97,7 @@ if __name__ == "__main__":
         context="What are the blocks that I can find in the forest in Minecraft?",
     )
 
-    critique = Critique(
-        success=False,
-        description="The code is not working as expected. The bot is not mining the wood log.",
-    )
+    critique = "The code is not working as expected. The bot is not mining the wood log."
 
     code = planner.generate_code(skillset, code_snippet, observation, task, critique)
     print(code)

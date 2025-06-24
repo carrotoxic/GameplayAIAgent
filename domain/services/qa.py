@@ -2,7 +2,7 @@ from domain.ports.llm_port import LLMPort
 from domain.ports.prompt_builder_port import PromptBuilderPort
 from domain.ports.parser_port import ParserPort
 from domain.ports.database_port import DatabasePort
-from domain.models import Observation, QAEntry, Task
+from domain.models import Observation, Task
 from typing import List
 
 class QAService:
@@ -20,16 +20,18 @@ class QAService:
         self._parser = parser
         self._database = database
 
-    def generate_context(self, observation: Observation, completed_tasks: List[Task], failed_tasks: List[Task]) -> list[QAEntry]:
+    def generate_context(self, observation: Observation, completed_tasks: List[Task], failed_tasks: List[Task]) -> list[str]:
         """Return 'Question / Answer' lines to insert into the prompt."""
-        # step1: generate questions
         questions = self.generate_questions(observation, completed_tasks, failed_tasks)
 
-        # step2: generate answers
-        qa_entries = self.generate_answers(questions)
+        qa_pairs = self.generate_qa_pairs(questions)
 
-        # step3: return qa_entries
-        return qa_entries
+        qa_text = ""
+        for qa in qa_pairs:
+            qa_text += qa + "\n"
+        qa_text = qa_text.rstrip("\n")
+
+        return qa_text
 
     def generate_questions(self, observation: Observation, completed_tasks: List[Task], failed_tasks: List[Task]) -> list[str]:
         """Generate questions based on the observation."""
@@ -40,10 +42,10 @@ class QAService:
         return questions
     
 
-    def generate_answers(self, questions: list[str]) -> list[str]:
+    def generate_qa_pairs(self, questions: list[str]) -> list[str]:
         """Generate answers for each question."""
-        qa_entries: list[QAEntry] = []
-        for question in questions:
+        qa_pairs: list[str] = []
+        for idx, question in enumerate(questions):
             cached = self._database.lookup(question)
             if cached:
                 answer = cached
@@ -52,8 +54,8 @@ class QAService:
                 llm_response = self._llm.chat([system_msg, user_msg])
                 answer = llm_response.content
                 self._database.store(texts=[question], metadatas=[{"question": question}])
-            qa_entries.append(QAEntry(question=question, answer=answer))
-        return qa_entries
+            qa_pairs.append(f"Question {idx+1}: {question}\n{answer}")
+        return qa_pairs
 
 if __name__ == "__main__":
 
@@ -61,15 +63,13 @@ if __name__ == "__main__":
     from infrastructure.prompts.registry import get
     from infrastructure.adapters.database.chroma_database import ChromaDatabase
     from domain.models import Event, Task
-    import infrastructure.prompts.builders.qa_question_prompt_builder
-    import infrastructure.prompts.builders.qa_answer_prompt_builder
     from infrastructure.adapters.game.minecraft.minecraft_observation_builder import MinecraftObservationBuilder
     from infrastructure.parsers.qa_question_parser import QAQuestionParser
 
     qa_service = QAService(
         llm=LangchainOllamaLLM(),
-        question_prompt_builder=get("qa_question"),
-        answer_prompt_builder=get("qa_answer"),
+        question_prompt_builder=get(game="minecraft", name="qa_question"),
+        answer_prompt_builder=get(game="minecraft", name="qa_answer"),
         parser=QAQuestionParser(),
         database=ChromaDatabase(collection_name="qa_cache"),
     )
@@ -96,7 +96,5 @@ if __name__ == "__main__":
     obs_builder = MinecraftObservationBuilder()
     obs = obs_builder.build(event=event)    
 
-    questions = qa_service.generate_questions(obs, tasks[:1], tasks[1:])
-    print(questions) 
-    answers = qa_service.generate_answers(questions)
-    print(answers)
+    qa_text = qa_service.generate_context(obs, tasks[:1], tasks[1:])
+    print(qa_text)

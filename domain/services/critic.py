@@ -1,5 +1,5 @@
 from domain.ports import LLMPort, ParserPort, PromptBuilderPort
-from domain.models import Event, Task, Critique, Observation
+from domain.models import Task, Observation
 
 class CriticService:
     """
@@ -22,11 +22,11 @@ class CriticService:
         self._prompt_builder = prompt_builder
         self._parser = parser
 
-    def evaluate(self, observation: Observation, task: Task) -> Critique:
+    def evaluate(self, observation: Observation, task: Task) -> tuple[bool, str]:
         system_msg, user_msg = self._prompt_builder.build_prompt(observation=observation, task=task)
         llm_response = self._llm.chat([system_msg, user_msg])
-        critique = self._parser.parse(llm_response.content)
-        return critique
+        success, critique = self._parser.parse(llm_response.content)
+        return success, critique
 
 
 # ------------------------------------------------------------
@@ -37,7 +37,6 @@ if __name__ == "__main__":
     from infrastructure.adapters.llm.ollama_llm import LangchainOllamaLLM
     from infrastructure.prompts.registry import get
     from infrastructure.parsers import CriticParser
-    import infrastructure.prompts.builders.critic_prompt_builder
 
     task = Task(command="Mine 1 gold log", reasoning="Need gold", context="Tutorial")
 
@@ -57,9 +56,9 @@ if __name__ == "__main__":
 
     critic_service = CriticService(
         llm=LangchainOllamaLLM(),
-        prompt_builder=get("critic"),
+        prompt_builder=get("minecraft", "critic"),
         parser=CriticParser()
     )
 
-    critique = critic_service.evaluate(observation, task)
-    print(critique)
+    success, critique = critic_service.evaluate(observation, task)
+    print(success, critique)

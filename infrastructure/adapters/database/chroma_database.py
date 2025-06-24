@@ -2,7 +2,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Optional
 
-from langchain_community.vectorstores import Chroma
+from langchain_chroma import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
 from domain.ports.database_port import DatabasePort
 
@@ -37,19 +37,26 @@ class ChromaDatabase(DatabasePort):
         return len(self._vectordb.get()['documents'])
 
     # ---------- Query ----------
-    def lookup(self, key: str) -> str | None:
+    def lookup(self, query: str) -> list[str]:
         if self._vectordb._collection.count() == 0:
-            return None
+            return []
 
-        docs_and_scores = self._vectordb.similarity_search_with_score(key, k=self._retrieval_top_k)
+        docs_and_scores = self._vectordb.similarity_search_with_score(query, k=self._retrieval_top_k)
         if not docs_and_scores:
-            return None
+            return []
 
         doc, score = docs_and_scores[0]
-        return doc.page_content if score < self._threshold else None
+        return doc.page_content if score < self._threshold else []
 
     # ---------- Command ----------
     def store(self, texts: list[str], metadatas: list[dict], ids: list[str] = None) -> None:
         # Save the result in the content (= page_content)
         self._vectordb.add_texts(texts=texts, metadatas=metadatas, ids=ids)
-        self._vectordb.persist()
+
+    # ---------- Clear ----------
+    def clear(self) -> None:
+        """Delete all entries in the Chroma collection."""
+        all_docs = self._vectordb.get()
+        ids = all_docs.get("ids", [])
+        if ids:
+            self._vectordb.delete(ids=ids)

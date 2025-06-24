@@ -1,37 +1,34 @@
 from __future__ import annotations
 from typing import Sequence
 from infrastructure.prompts.builders._base import _BasePromptBuilder
-from domain.models import Message, Observation, QAEntry
-from infrastructure.prompts.utils import load_prompt
+from domain.models import Message
+from infrastructure.utils import load_prompt
 from infrastructure.prompts.registry import register
 
-@register("curriculum")
+@register("minecraft", "curriculum")
 class CurriculumPromptBuilder(_BasePromptBuilder):
     """CurriculumService uses this prompt builder"""
 
     def _system_header(self, **kw) -> Message:
         return Message(
             role="system",
-            content=load_prompt("curriculum", "base")
+            content=load_prompt("minecraft", "curriculum", "base")
         )
 
     def _compose_user(self, **kw) -> Message:
-        qa_entries = kw['qa_entries']
+        qa_text = kw['qa_text']
         observation = kw['observation']
         completed_tasks = kw['completed_tasks']
         failed_tasks = kw['failed_tasks']
 
-        qa_txt = ""
-        if qa_entries:
-            for idx, qa_entry in enumerate(qa_entries):
-                qa_txt += f"Question {idx+1}: {qa_entry.question}\nAnswer: {qa_entry.answer}\n"
-            qa_txt = qa_txt.rstrip("\n")
-
         return Message(
             role="user",
-            content=f"{qa_txt}\n\n{observation}\n\n"
-            f"Completed tasks: {', '.join(task.command for task in completed_tasks)}\n\n"
-            f"Failed tasks: {', '.join(task.command for task in failed_tasks)}"
+            content=(
+                f"{qa_text}\n\n"
+                f"{observation}\n\n"
+                f"Completed tasks: {', '.join(task.command for task in completed_tasks)}\n\n"
+                f"Failed tasks: {', '.join(task.command for task in failed_tasks)}"
+            )
         )
 
 
@@ -65,15 +62,15 @@ if __name__ == "__main__":
         Task(command="Craft wooden pickaxe", reasoning="Need tool", context="Early-game crafting"),
     ]
 
-    qa_entries = [
-        QAEntry(question="What are the blocks that I can find in the forest in Minecraft?", answer="The blocks that I can find in the forest in Minecraft are grass, dirt, stone, and oak_log."),
-        QAEntry(question="What are the items that I can find in the forest in Minecraft?", answer="The items that I can find in the forest in Minecraft are oak_log, wooden_pickaxe, and iron_ingot."),
-        QAEntry(question="What are the mobs that I can find in the forest in Minecraft?", answer="The mobs that I can find in the forest in Minecraft are cow."),
-    ]
+    qa_text = (
+        "Question 1: What are the blocks that I can find in the forest in Minecraft? \nAnswer: The blocks that I can find in the forest in Minecraft are grass, dirt, stone, and oak_log.\n"
+        "Question 2: What are the items that I can find in the forest in Minecraft? \nAnswer: The items that I can find in the forest in Minecraft are oak_log, wooden_pickaxe, and iron_ingot.\n"
+        "Question 3: What are the mobs that I can find in the forest in Minecraft? \nAnswer: The mobs that I can find in the forest in Minecraft are cow."
+    )
 
     obs = obs_builder.build(event=event)
 
-    sys_msg, user_msg = curriculum_builder.build_prompt(qa_entries=qa_entries, observation=obs, completed_tasks=tasks[:1], failed_tasks=tasks[1:])
+    sys_msg, user_msg = curriculum_builder.build_prompt(qa_text=qa_text, observation=obs, completed_tasks=tasks[:1], failed_tasks=tasks[1:])
     print("-------system message-------")
     print(sys_msg)
     print("-------user message-------")

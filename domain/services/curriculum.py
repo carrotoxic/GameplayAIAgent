@@ -49,11 +49,11 @@ class CurriculumService:
         )
 
         # generate game related question and answer as context
-        qa_entries = self._qa.generate_context(observation, self._completed_tasks, self._failed_tasks)
+        qa_text = self._qa.generate_context(observation, self._completed_tasks, self._failed_tasks)
         
         # build final prompt and send to LLM
         system_msg, user_msg = self._curriculum_prompt_builder.build_prompt(
-            qa_entries=qa_entries,
+            qa_text=qa_text,
             observation=observation,
             completed_tasks=self._completed_tasks,
             failed_tasks=self._failed_tasks,
@@ -62,7 +62,7 @@ class CurriculumService:
         try:
             # parse LLM response to task proposal model
             task = self._parser.parse(llm_response.content)
-            task.context = qa_entries
+            task.context = qa_text
             return task
         except Exception as exc:
             raise Exception("Failed to parse LLM reply") from exc
@@ -90,9 +90,6 @@ if __name__ == "__main__":
     from infrastructure.parsers.task_parser import TaskParser
     from infrastructure.parsers.qa_question_parser import QAQuestionParser
     from infrastructure.adapters.game.minecraft.minecraft_observation_builder import MinecraftObservationBuilder
-    import infrastructure.prompts.builders.qa_question_prompt_builder
-    import infrastructure.prompts.builders.qa_answer_prompt_builder
-    import infrastructure.prompts.builders.curriculum_prompt_builder
 
     event = Event(
         position={"x": 10.5, "y": 64.0, "z": -5.2},
@@ -110,8 +107,8 @@ if __name__ == "__main__":
     
     qa_service = QAService(
         llm=LangchainOllamaLLM(),
-        question_prompt_builder=get("qa_question"),
-        answer_prompt_builder=get("qa_answer"),
+        question_prompt_builder=get(game="minecraft", name="qa_question"),
+        answer_prompt_builder=get(game="minecraft", name="qa_answer"),
         parser=QAQuestionParser(),
         database=ChromaDatabase(collection_name="qa_cache"),
     )
@@ -122,7 +119,7 @@ if __name__ == "__main__":
         llm=LangchainOllamaLLM(),
         qa_service=qa_service,
         observation_builder=observation_builder,
-        curriculum_prompt_builder=get("curriculum"),
+        curriculum_prompt_builder=get(game="minecraft", name="curriculum"),
         parser=TaskParser(),
     )
 

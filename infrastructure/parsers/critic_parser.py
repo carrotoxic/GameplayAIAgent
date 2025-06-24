@@ -1,8 +1,6 @@
 from __future__ import annotations
 import json
-from typing import Any
 from domain.ports.parser_port import ParserPort
-from domain.models import Critique
 
 
 class CriticParser(ParserPort):
@@ -16,16 +14,13 @@ class CriticParser(ParserPort):
     }
 
     Returns:
-        Critique: A domain model containing success and critique string.
+        tuple[bool, str]: A tuple containing success and critique string.
     """
 
-    def parse(self, text: str) -> Critique:
+    def parse(self, text: str) -> tuple[bool, str]:
         try:
             data = json.loads(text)
-            return Critique(
-                success=bool(data["success"]),
-                description=data.get("critique", "")
-            )
+            return bool(data["success"]), data.get("critique", "")
         except (json.JSONDecodeError, KeyError) as e:
             raise ValueError(f"Invalid LLM response format: {e}")
 

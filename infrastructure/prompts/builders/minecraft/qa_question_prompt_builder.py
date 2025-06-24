@@ -1,18 +1,18 @@
 from __future__ import annotations
 from infrastructure.prompts.builders._base import _BasePromptBuilder
 from domain.models import Task, Observation, Message
-from infrastructure.prompts.utils import load_prompt
+from infrastructure.utils import load_prompt
 from infrastructure.prompts.registry import register
 from typing import List
 
-@register("qa_question")
+@register("minecraft", "qa_question")
 class QAPromptBuilder(_BasePromptBuilder):
     """QAService uses this prompt builder"""
 
     def _system_header(self, **kw) -> Message:
         return Message(
             role="system",
-            content=load_prompt("curriculum", "qa_question")
+            content=load_prompt("minecraft", "curriculum", "qa_question")
         )
 
     def _compose_user(self, **kw) -> Message:
