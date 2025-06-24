@@ -1,6 +1,6 @@
 from typing import List
 from domain.ports import LLMPort, DatabasePort, PromptBuilderPort
-from domain.models import Skill, Task
+from domain.models import Skill, Task, CodeSnippet
 
 class SkillService:
     """
@@ -16,48 +16,51 @@ class SkillService:
     def __init__(
         self,
         llm: LLMPort,
-        skill_description_prompt_builder: PromptBuilderPort,
+        prompt_builder: PromptBuilderPort,
         database: DatabasePort,
-        retrieval_top_k: int = 5
+        resume: bool = False
     ):
         self._llm = llm
-        self._skill_description_prompt_builder = skill_description_prompt_builder
+        self._prompt_builder = prompt_builder
         self._database = database
-        self._retrieval_top_k = retrieval_top_k
         
-        self.skills = {}
+        if not resume:
+            self._database.clear()  # clear vector DB
+            self.skills = {}
+        # else:
+        #     self.skills = self._database.load()
 
-    def add_skill(self, skill: Skill) -> None:
+    def add_skill(self, code_snippet: CodeSnippet) -> None:
         """
         Add a new skill to the skill library.
         """
         # Generate skill description (e.g. summarization)
-        description = self._generate_description(skill)
+        description = self._generate_description(code_snippet)
         skill_with_description = Skill(
-            name=skill.name,
-            code=skill.code,
+            name=code_snippet.function_name,
+            code=code_snippet.code,
             description=description,
         )
-        self._database.store(texts=[description], metadatas=[{"skill": skill.name}], ids=[skill.name])
-        self.skills[skill.name] = skill_with_description
+        self._database.store(texts=[description], metadatas=[{"skill": skill_with_description.name}], ids=[skill_with_description.name])
+        self.skills[skill_with_description.name] = skill_with_description
         assert self._database.count() == len(
             self.skills
         ), "database is not synced with skills"
 
     def retrieve_skillset(self, task: Task) -> List[Skill]:
         """
-        Retrieve top-k relevant skills based on the task.
+        Retrieve relevant skills based on the task.
         """
         query = task.context
-        skills = self._database.similarity_search(query=query, k=self._retrieval_top_k)
+        skills = self._database.lookup(query=query)
         return skills
 
-    def _generate_description(self, skill: Skill) -> str:
+    def _generate_description(self, code_snippet: str) -> str:
         """
         Generate a description for a skill.
         """
-        system_msg, user_msg = self._skill_description_prompt_builder.build_prompt(
-            skill=skill
+        system_msg, user_msg = self._prompt_builder.build_prompt(
+            code_snippet=code_snippet
         )
         llm_response = self._llm.chat([system_msg, user_msg])
         return llm_response.content
@@ -72,26 +75,17 @@ if __name__ == "__main__":
     from infrastructure.adapters.llm.ollama_llm import LangchainOllamaLLM
     from infrastructure.adapters.database.chroma_database import ChromaDatabase
     from infrastructure.prompts.registry import get
-    import infrastructure.prompts.builders.skill_description_prompt_builder
 
-    skill = Skill(
-        name="mineWoodLog",
-        code="async function mineWoodLog(bot) {\n  const woodLogNames = [\"oak_log\", \"birch_log\", \"spruce_log\", \"jungle_log\", \"acacia_log\", \"dark_oak_log\", \"mangrove_log\"];\n\n  // Find a wood log block\n  const woodLogBlock = await exploreUntil(bot, new Vec3(1, 0, 1), 60, () => {\n    return bot.findBlock({\n      matching: block => woodLogNames.includes(block.name),\n      maxDistance: 32\n    });\n  });\n  if (!woodLogBlock) {\n    bot.chat(\"Could not find a wood log.\");\n    return;\n  }\n\n  // Mine the wood log block\n  await mineBlock(bot, woodLogBlock.name, 1);\n  bot.chat(\"Wood log mined.\");\n}",
-        description="async function mineWoodLog(bot) {\n    // The function is about mining a single wood log block. It searches for a wood log block by exploring the environment until it finds one of the seven types of wood logs. If a wood log block is found, it is mined and a success message is sent. If no wood log block is found, a failure message is sent.\n}",
-    )
-    
     skill_service = SkillService(
         llm=LangchainOllamaLLM(),
-        skill_description_prompt_builder=get("skill_description"),
+        prompt_builder=get("minecraft", "skill_description"),
         database=ChromaDatabase(collection_name="skill_library"),
-        primitive_skills=[
-            Skill(
-                name="mineWoodLog",
-                code="async function mineWoodLog(bot) {\n  const woodLogNames = [\"oak_log\", \"birch_log\", \"spruce_log\", \"jungle_log\", \"acacia_log\", \"dark_oak_log\", \"mangrove_log\"];\n\n  // Find a wood log block\n  const woodLogBlock = await exploreUntil(bot, new Vec3(1, 0, 1), 60, () => {\n    return bot.findBlock({\n      matching: block => woodLogNames.includes(block.name),\n      maxDistance: 32\n    });\n  });\n  if (!woodLogBlock) {\n    bot.chat(\"Could not find a wood log.\");\n    return;\n  }\n\n  // Mine the wood log block\n  await mineBlock(bot, woodLogBlock.name, 1);\n  bot.chat(\"Wood log mined.\");\n}",
-                description="async function mineWoodLog(bot) {\n    // The function is about mining a single wood log block. It searches for a wood log block by exploring the environment until it finds one of the seven types of wood logs. If a wood log block is found, it is mined and a success message is sent. If no wood log block is found, a failure message is sent.\n}",
-            ),
-        ],
+        resume=False
     )
 
-    skill_service.add_skill(skill)
+    skill_service.add_skill(CodeSnippet(
+        function_name="mineWoodLog",
+        code="async function mineWoodLog(bot) {\n  const woodLogNames = [\"oak_log\", \"birch_log\", \"spruce_log\", \"jungle_log\", \"acacia_log\", \"dark_oak_log\", \"mangrove_log\"];\n\n  // Find a wood log block\n  const woodLogBlock = await exploreUntil(bot, new Vec3(1, 0, 1), 60, () => {\n    return bot.findBlock({\n      matching: block => woodLogNames.includes(block.name),\n      maxDistance: 32\n    });\n  });\n  if (!woodLogBlock) {\n    bot.chat(\"Could not find a wood log.\");\n    return;\n  }\n\n  // Mine the wood log block\n  await mineBlock(bot, woodLogBlock.name, 1);\n  bot.chat(\"Wood log mined.\");\n}"
+    ))
+
     print(skill_service.skills)

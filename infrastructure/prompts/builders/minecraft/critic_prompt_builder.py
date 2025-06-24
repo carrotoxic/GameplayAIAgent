@@ -1,17 +1,17 @@
 from __future__ import annotations
 from infrastructure.prompts.builders._base import _BasePromptBuilder
 from domain.models import Message, Task, Observation
-from infrastructure.prompts.utils import load_prompt
+from infrastructure.utils import load_prompt
 from infrastructure.prompts.registry import register
 
-@register("critic")
+@register("minecraft", "critic")
 class CriticPromptBuilder(_BasePromptBuilder):
     """CriticService uses this prompt builder"""
 
     def _system_header(self, **kw) -> Message:
         return Message(
             role="system",
-            content=load_prompt("critic", "base")
+            content=load_prompt("minecraft", "critic", "base")
         )
 
     def _compose_user(self, **kw) -> Message:

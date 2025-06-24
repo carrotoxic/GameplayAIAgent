@@ -1,15 +1,31 @@
-from typing import Type, Dict
+from typing import Type, Dict, Callable
 from domain.ports.prompt_builder_port import PromptBuilderPort
 
-_REGISTRY: Dict[str, Type[PromptBuilderPort]] = {}
+_REGISTRY: Dict[tuple[str, str], Type[PromptBuilderPort]] = {}
 
-def register(name: str):
+def register(game: str, name: str) -> Callable[[Type[PromptBuilderPort]], Type[PromptBuilderPort]]:
+    """
+    Decorator to register a PromptBuilder class under a given name.
+
+    Example:
+        @register("minecraft", "qa_question")
+        class QAQuestionPromptBuilder(...):
+            ...
+    """
+    
     def _decorator(cls: Type[PromptBuilderPort]):
-        _REGISTRY[name] = cls
+        key = (game, name)
+        if key in _REGISTRY:
+            raise ValueError(f"PromptBuilder '{name}' for game '{game}' is already registered.")
+        _REGISTRY[key] = cls
         return cls
     return _decorator
 
-def get(name: str, **kwargs) -> PromptBuilderPort:
-    if name not in _REGISTRY:
-        raise KeyError(f"No PromptBuilder called '{name}'")
-    return _REGISTRY[name](**kwargs)
+def get(game: str, name: str, **kwargs) -> PromptBuilderPort:
+    from infrastructure.prompts import import_all_prompt_builders
+    import_all_prompt_builders()
+    
+    key = (game, name)
+    if key not in _REGISTRY:
+        raise KeyError(f"No PromptBuilder called '{name}' for game '{game}'")
+    return _REGISTRY[key](**kwargs)

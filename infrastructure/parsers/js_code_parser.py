@@ -3,6 +3,7 @@ import re
 from typing import Any
 from domain.ports.parser_port import ParserPort
 from javascript import require
+from domain.models import CodeSnippet
 
 # Load JavaScript parser and code formatter
 babel = require("@babel/core")
@@ -21,19 +22,23 @@ class JSParser(ParserPort):
     and return a javascript code.
     """
 
-    def parse(self, text: str) -> Any:
+    def parse(self, text: str) -> CodeSnippet:
         # extract the code pattern using regex from the text
         code_pattern = re.compile(r"```(?:javascript|js)(.*?)```", re.DOTALL)
         code_text = "\n".join(code_pattern.findall(text))
         if not code_text.strip():
-            raise ValueError("No JavaScript code found in message.")
+            return None
         
         # parse the code text into a AST
         code_ast = babel.parse(code_text)
+        function_name = code_ast.program.body[0].id.name
         # format the AST into a javascript code
         formatted_code = babel_generator.generate(code_ast)["code"]
 
-        return formatted_code
+        return CodeSnippet(
+            function_name=function_name,
+            code=formatted_code
+        )
     
 
 # ------------------------------------------------------------
