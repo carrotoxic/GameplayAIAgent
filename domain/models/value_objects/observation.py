@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Optional
 
 @dataclass(frozen=True)
 class Observation:
@@ -14,9 +15,14 @@ class Observation:
     inventory: str
     chests: str
 
+    error_message: Optional[str] = ""
+    chat_message: Optional[str] = ""
+
     def __str__(self) -> str:
         """convert to human readable text"""
         return (
+            f"Execution error: [{self.error_message}]\n\n"
+            f"Chat log: [{self.chat_message}]\n\n"
             f"Biome: {self.biome}\n\n"
             f"Time: {self.time}\n\n"
             f"Nearby blocks: {self.nearby_blocks}\n\n"
@@ -29,3 +35,8 @@ class Observation:
             f"Inventory: {self.inventory}\n\n"
             f"Chests: {self.chests}"
         )
+
+    # you can only set the error message when the code snippet is None
+    def set_error_message(self, msg: str) -> None:
+        object.__setattr__(self, "error_message", msg)
+    

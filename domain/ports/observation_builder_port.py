@@ -1,7 +1,7 @@
 from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Protocol
-from domain.models import Observation, Event
+from domain.models import Observation
 
 class ObservationBuilderPort(Protocol):
     """
@@ -9,4 +9,4 @@ class ObservationBuilderPort(Protocol):
     """
 
     @abstractmethod
-    def build(self, *,event: Event) -> Observation: ...
+    def build(self, *,event: dict) -> Observation: ...

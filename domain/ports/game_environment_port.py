@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-from domain.models import Event
 
 class GameEnvironmentPort(ABC):
     """
@@ -12,12 +11,12 @@ class GameEnvironmentPort(ABC):
     """
 
     @abstractmethod
-    def reset(self, options: dict = None) -> Event:
+    def reset(self, options: dict = None) -> dict:
         """Reset the environment and return the initial Event observation."""
         pass
 
     @abstractmethod
-    def step(self, action: str = None) -> Event:
+    def step(self, action: str = None) -> dict:
         """Execute one step in the environment using the provided action."""
         pass
 

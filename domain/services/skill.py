@@ -38,7 +38,7 @@ class SkillService:
         description = self._generate_description(code_snippet)
         skill_with_description = Skill(
             name=code_snippet.function_name,
-            code=code_snippet.code,
+            code=code_snippet.main_function_code,
             description=description,
         )
         self._database.store(texts=[description], metadatas=[{"skill": skill_with_description.name}], ids=[skill_with_description.name])

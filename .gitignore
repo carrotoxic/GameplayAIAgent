@@ -44,5 +44,8 @@ coverage/
 htmlcov/
 .mypy_cache/
 
+# === Checkpoints ===
+ckpt/
+
 # === reference code ===
 Voyager-main/

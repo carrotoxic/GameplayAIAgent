@@ -52,6 +52,8 @@ if __name__ == "__main__":
         other_blocks="iron_ore",
         equipment={"helmet": "leather_helmet"},
         chests={"Chest 1": "iron_ingot: 8", "Chest 2": "iron_ingot: 8"},
+        error_message="Evaluation error: Runtime error: Took to long to decide path to goal!",
+        chat_message="Explore success.",
     )
 
     critic_service = CriticService(
