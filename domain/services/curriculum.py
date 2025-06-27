@@ -2,7 +2,7 @@ from domain.ports.llm_port import LLMPort
 from domain.ports.prompt_builder_port import PromptBuilderPort
 from domain.ports.parser_port import ParserPort
 from domain.services.qa import QAService
-from domain.models import Task, Event, Observation
+from domain.models import Task, Observation
 from typing import List
 
 class CurriculumService:
@@ -21,38 +21,31 @@ class CurriculumService:
         self,
         llm: LLMPort,
         qa_service: QAService,
-        observation_builder: PromptBuilderPort,
-        curriculum_prompt_builder: PromptBuilderPort,
+        prompt_builder: PromptBuilderPort,
         parser: ParserPort,
         # TODO: add warmup thresholds
         # warmup_thresholds: WarmupThresholds,
     ):
         self._llm = llm
         self._qa = qa_service
-        self._observation_builder = observation_builder
-        self._curriculum_prompt_builder = curriculum_prompt_builder
+        self._prompt_builder = prompt_builder
         self._parser = parser
         # self._warmup = warmup_thresholds
         self._completed_tasks: List[Task] = []
         self._failed_tasks: List[Task] = []
 
     def next_task(
-        self, event: Event) -> Task:
+        self, observation: Observation) -> Task:
         """
         Decide the next Task. May raise ProposalFailed when the LLM
         reply cannot be parsed after several retries.
         """
 
-        # convert raw event to observation
-        observation: Observation = self._observation_builder.build(
-            event=event,
-        )
-
         # generate game related question and answer as context
         qa_text = self._qa.generate_context(observation, self._completed_tasks, self._failed_tasks)
-        
+
         # build final prompt and send to LLM
-        system_msg, user_msg = self._curriculum_prompt_builder.build_prompt(
+        system_msg, user_msg = self._prompt_builder.build_prompt(
             qa_text=qa_text,
             observation=observation,
             completed_tasks=self._completed_tasks,
@@ -78,6 +71,12 @@ class CurriculumService:
         if task in self._completed_tasks:
             self._completed_tasks.remove(task)
 
+    def get_completed_tasks(self) -> List[Task]:
+        return self._completed_tasks
+    
+    def get_failed_tasks(self) -> List[Task]:
+        return self._failed_tasks
+
 
 # ------------------------------------------------------------
 # Test
@@ -91,19 +90,7 @@ if __name__ == "__main__":
     from infrastructure.parsers.qa_question_parser import QAQuestionParser
     from infrastructure.adapters.game.minecraft.minecraft_observation_builder import MinecraftObservationBuilder
 
-    event = Event(
-        position={"x": 10.5, "y": 64.0, "z": -5.2},
-        inventory={"oak_log": 3, "wooden_pickaxe": 1},
-        health=18.5,
-        hunger=15.0,
-        biome="forest",
-        nearby_blocks=["grass", "dirt", "stone", "oak_log"],
-        nearby_entities={"cow": 5.0},
-        time="day",
-        other_blocks="iron_ore",
-        equipment={"helmet": "leather_helmet"},
-        chests={"Chest 1": "iron_ingot: 8", "Chest 2": "iron_ingot: 8"},
-    )
+
     
     qa_service = QAService(
         llm=LangchainOllamaLLM(),
@@ -123,5 +110,5 @@ if __name__ == "__main__":
         parser=TaskParser(),
     )
 
-    task = curriculum_service.next_task(event)
-    print(task)
+    # task = curriculum_service.next_task(observation)
+    # print(task)

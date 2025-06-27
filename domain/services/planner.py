@@ -16,7 +16,7 @@ class PlannerService:
                  llm: LLMPort, 
                  prompt_builder: PromptBuilderPort, 
                  parser: ParserPort,
-                 max_code_generation_tries: int = 3,
+                 max_code_generation_tries: int = 5,
                  ):
         self._llm = llm
         self._prompt_builder = prompt_builder
@@ -51,7 +51,6 @@ if __name__ == "__main__":
     from infrastructure.adapters.game.minecraft.minecraft_observation_builder import MinecraftObservationBuilder
     from infrastructure.prompts.registry import get
     from infrastructure.parsers import JSParser
-    from domain.models import Event
 
     planner = PlannerService(
         llm=LangchainOllamaLLM(),

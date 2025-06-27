@@ -20,5 +20,5 @@ class SkillDescriptionPromptBuilder(_BasePromptBuilder):
     ) -> Message:
         return Message(
             role="user",
-            content=f"{code_snippet.code}\n\nThe main function is `{code_snippet.function_name}`."
+            content=f"{code_snippet.main_function_code}\n\nThe main function is `{code_snippet.function_name}`."
         )

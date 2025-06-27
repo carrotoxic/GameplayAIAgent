@@ -1,7 +1,7 @@
 from domain.services import CurriculumService, CriticService, PlannerService, SkillService
-from domain.models import Event   # TODO: change to Observation
 from infrastructure.utils import load_skills
-# from domain.ports import GameEnvironmentPort
+from domain.ports import GameEnvironmentPort
+from domain.models import CodeSnippet
 
 class AgentController:
     def __init__(self, 
@@ -9,33 +9,24 @@ class AgentController:
         skill_service: SkillService,
         planner_service: PlannerService,
         critic_service: CriticService, 
-        # env: GameEnvironmentPort,
+        env: GameEnvironmentPort,
         primitive_skill_dir: str = "infrastructure/primitive_skill"
         ):
         self._curriculum_service = curriculum_service
         self._skill_service = skill_service
         self._planner_service = planner_service
         self._critic_service = critic_service
-        # self._env = env
+        self._env = env
         self._primitive_skill_dir = primitive_skill_dir
 
     def run(self, max_tries_per_task: int = 5):
-        # TODO: implement environment
-        # event = self._env.reset()
-        '''dummy event'''
-        event = Event(
-            position={"x": 10.5, "y": 64.0, "z": -5.2},
-            inventory={"oak_log": 3, "wooden_pickaxe": 1},
-            health=18.5,
-            hunger=15.0,
-            biome="forest",
-            nearby_blocks=["grass", "dirt", "stone", "oak_log"],
-            nearby_entities={"cow": 5.0},
-            time="day",
-            other_blocks="iron_ore",
-            equipment={"helmet": "leather_helmet"},
-            chests="Chest 1: iron_ingot: 8",
-        )
+
+        # TODO: fix A fatal JavaScript heap out-of-memory crash
+        # TODO: revise the chest observation
+        # TODO: fix the skillset retrieval
+        # TODO: check all the prompt generated
+
+
 
         '''
         Primitive skills refer to the core skill functions provided to the agent from the start.
@@ -43,22 +34,26 @@ class AgentController:
             `usage`: example usage snippets of these skills, used as context for the planner/LLM.
           Return a list of Skill Value Objects
         '''
-
         print("AgentController: loading primitive skills")
         primitive_skillset_definitions = load_skills(self._primitive_skill_dir + "/definitions")
         primitive_skillset_usage = load_skills(self._primitive_skill_dir + "/usage")
         print("AgentController: primitive skills loaded")
         # continue to generate task until manually stopped
         while True:
+            # reset the environment when the agent finished the previous task
+            observation = self._env.reset({
+                "port": 25565,
+                "waitTicks": 5,
+                "reset": "hard"
+            })
             print("AgentController: generating task")
-            task = self._curriculum_service.next_task(event)
+            task = self._curriculum_service.next_task(observation)
             print(f"AgentController: task: {task.command}")
 
             # initialize the local variables
             try_count = 0
             success = False
             code_snippet = None
-            observation = None
             critique = None
             
             # continue to generate code snippet until the task is completed or failed for max tries
@@ -71,6 +66,7 @@ class AgentController:
                 
                 # llm generate execution code based on the current situation
                 print("AgentController: generating code snippet")
+                # TODO: enchance the prompt for planner
                 code_snippet = self._planner_service.generate_code(
                     skillset_context,
                     code_snippet,
@@ -78,15 +74,20 @@ class AgentController:
                     task,
                     critique
                 )
-                print(f"AgentController: code snippet generated: {code_snippet}")
+
+                print(f"AgentController: code snippet generated")
                 # execute the code snippet using both primitive skills and retrieved skills
                 helper_functions = primitive_skillset_definitions + retrieved_skillset
-                print("AgentController: helper functions generated")
-                # TODO: implement environment
-                print("AgentController: executing code snippet")
-                # observation = self._env.step(code_snippet, helper_functions)
-                print("AgentController: observation generated")
-
+                if code_snippet is not None:
+                    print("AgentController: executing code snippet")
+                    observation = self._env.step(code_snippet, helper_functions)
+                    print(f"AgentController: observation generated")
+                else:
+                    print("AgentController: code snippet is None")
+                    observation.set_error_message("Code snippet is None")
+                    try_count += 1
+                    continue
+                
                 # llm decide if the task is successful or not, and provide a critique
                 print("AgentController: evaluating task")
                 success, critique = self._critic_service.evaluate(observation, task)
@@ -106,7 +107,6 @@ class AgentController:
             else:
                 print("AgentController: task failed")
                 self._curriculum_service.add_failed_task(task)
-
 
 
 if __name__ == "__main__":

@@ -4,10 +4,11 @@ from domain.services import CurriculumService, QAService, CriticService, Planner
 from application.agent_controller import AgentController
 from infrastructure.adapters.llm import LangchainOllamaLLM
 from infrastructure.adapters.database import ChromaDatabase
-from infrastructure.adapters.game import MinecraftObservationBuilder
+from infrastructure.adapters.game.minecraft import MinecraftObservationBuilder, MineflayerEnvironment, MineflayerProcessManager, MineflayerAPIClient
 from infrastructure.parsers import  QAQuestionParser, TaskParser, JSParser, CriticParser
 from infrastructure.prompts.registry import get
-
+from pathlib import Path
+import logging
 
 def build_agent(game: str) -> AgentController:
     # LLM
@@ -26,8 +27,7 @@ def build_agent(game: str) -> AgentController:
     curriculum_service = CurriculumService(
         llm=llm,
         qa_service=qa_service,
-        observation_builder=MinecraftObservationBuilder(),
-        curriculum_prompt_builder=get(game=game, name="curriculum"),
+        prompt_builder=get(game=game, name="curriculum"),
         parser=TaskParser()
     )
 
@@ -52,8 +52,16 @@ def build_agent(game: str) -> AgentController:
         database=ChromaDatabase(collection_name="skill_library"),
     )
 
-    # Env adapter
-    # env = MinecraftEnvironmentAdapter(mc_port=25565)  # Example port
+    # Game Environment adapter
+    script_path = Path(__file__).parent.parent / Path("infrastructure/adapters/game/minecraft/mineflayer_server/index.js")
+    env = MineflayerEnvironment(
+        api_client=MineflayerAPIClient(host="localhost", port=3000, timeout=600),
+        process_manager=MineflayerProcessManager(
+            script_path=script_path,
+            logger=logging.getLogger(__name__)
+        ),
+        observation_builder=MinecraftObservationBuilder()
+    )
 
     # Return controller with all dependencies injected
     agent_controller = AgentController(
@@ -61,7 +69,7 @@ def build_agent(game: str) -> AgentController:
         skill_service=skill_service,
         planner_service=planner_service,
         critic_service=critic_service,
-        # env=env,
+        env=env,
         primitive_skill_dir="infrastructure/primitive_skill"
     )
 

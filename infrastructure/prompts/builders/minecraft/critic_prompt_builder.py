@@ -48,6 +48,8 @@ if __name__ == "__main__":
         equipment="leather_helmet",
         inventory="oak_log: 3, wooden_pickaxe: 1",
         chests={"Chest 1": "iron_ingot: 8", "Chest 2": "iron_ingot: 8"},
+        error_message="Evaluation error: Runtime error: Took to long to decide path to goal!",
+        chat_message="Explore success.",
     )
 
     critic_builder = CriticPromptBuilder()
