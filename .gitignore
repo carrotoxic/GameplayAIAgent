@@ -49,3 +49,7 @@ ckpt/
 
 # === reference code ===
 Voyager-main/
+
+
+# === server related files ===
+infrastructure/adapters/game/minecraft/mineflayer_server/
