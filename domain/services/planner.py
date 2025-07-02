@@ -1,5 +1,7 @@
-from domain.ports import LLMPort, ParserPort, PromptBuilderPort
-from domain.models import Skill, Task, Observation, CodeSnippet
+from typing import List, Sequence, Optional
+from ..ports import LLMPort, PromptBuilderPort
+from ..models import Task, CodeSnippet, Observation, Skill
+from ..ports.parser_port import ParserPort
 
 class PlannerService:
     """
@@ -23,25 +25,23 @@ class PlannerService:
         self._parser = parser
         self._max_code_generation_tries = max_code_generation_tries
 
-    def generate_code(self, skillset: list[Skill], code_snippet: CodeSnippet, observation: Observation, task: Task, critique: str) -> CodeSnippet:
+    async def generate_code(self, 
+        skillset: Sequence[Skill], 
+        code_snippet: Optional[CodeSnippet],
+        observation: Observation, 
+        task: Task, 
+        critique: Optional[str]) -> CodeSnippet:
+        
         system_msg, user_msg = self._prompt_builder.build_prompt(
             skillset=skillset,
             code_snippet=code_snippet,
             observation=observation,
             task=task,
-            critique=critique,
+            critique=critique
         )
-
-        for try_count in range(self._max_code_generation_tries):
-            llm_response = self._llm.chat([system_msg, user_msg])
-            next_code_snippet = self._parser.parse(llm_response.content)
-            if next_code_snippet:
-                return next_code_snippet
-            else:
-                print(f"PlannerService: code snippet generation failed, try {try_count + 1} of {self._max_code_generation_tries}")
-                continue
-        return None
-
+        response = await self._llm.chat(messages=[system_msg, user_msg])
+        code_snippet = self._parser.parse(response.content)
+        return code_snippet, response.content
     
 # ------------------------------------------------------------
 # Test
@@ -67,36 +67,23 @@ if __name__ == "__main__":
               description="Craft a wooden pickaxe"),
     ]
 
-    code_snippet = "async function mineWoodLog(bot) {\n  const woodLogNames = [\"oak_log\", \"birch_log\", \"spruce_log\", \"jungle_log\", \"acacia_log\", \"dark_oak_log\", \"mangrove_log\"];\n\n  // Find a wood log block\n  const woodLogBlock = await exploreUntil(bot, new Vec3(1, 0, 1), 60, () => {\n    return bot.findBlock({\n      matching: block => woodLogNames.includes(block.name),\n      maxDistance: 32\n    });\n  });\n  if (!woodLogBlock) {\n    bot.chat(\"Could not find a wood log.\");\n    return;\n  }\n\n  // Mine the wood log block\n  await mineBlock(bot, woodLogBlock.name, 1);\n  bot.chat(\"Wood log mined.\");\n}"
+    # code_snippet = "async function mineWoodLog(bot) {\n  const woodLogNames = [\"oak_log\", \"birch_log\", \"spruce_log\", \"jungle_log\", \"acacia_log\", \"dark_oak_log\", \"mangrove_log\"];\n\n  // Find a wood log block\n  const woodLogBlock = await exploreUntil(bot, new Vec3(1, 0, 1), 60, () => {\n    return bot.findBlock({\n      matching: block => woodLogNames.includes(block.name),\n      maxDistance: 32\n    });\n  });\n  if (!woodLogBlock) {\n    bot.chat(\"Could not find a wood log.\");\n    return;\n  }\n\n  // Mine the wood log block\n  await mineBlock(bot, woodLogBlock.name, 1);\n  bot.chat(\"Wood log mined.\");\n}"
 
-    event = Event(
-        position={"x": 10.5, "y": 64.0, "z": -5.2},
-        inventory={"oak_log": 3, "wooden_pickaxe": 1},
-        health=18.5,
-        hunger=15.0,
-        biome="forest",
-        nearby_blocks=["grass", "dirt", "stone", "oak_log"],
-        nearby_entities={"cow": 5.0},
-        time="day",
-        other_blocks="iron_ore",
-        equipment={"helmet": "leather_helmet"},
-        chests="Chest 1: iron_ingot: 8",
-    )
 
-    tasks = [
-        Task(command="Mine 1 wood log", reasoning="Need wood", context="Tutorial"),
-        Task(command="Craft wooden pickaxe", reasoning="Need tool", context="Early-game crafting"),
-    ]
+    # tasks = [
+    #     Task(command="Mine 1 wood log", reasoning="Need wood", context="Tutorial"),
+    #     Task(command="Craft wooden pickaxe", reasoning="Need tool", context="Early-game crafting"),
+    # ]
 
-    observation = MinecraftObservationBuilder().build(event=event, completed=tasks[:1], failed=tasks[1:])
+    # observation = MinecraftObservationBuilder().build(event=event, completed=tasks[:1], failed=tasks[1:])
 
-    task = Task(
-        command="Mine 1 iron ore",
-        reasoning="Need iron ore",
-        context="What are the blocks that I can find in the forest in Minecraft?",
-    )
+    # task = Task(
+    #     command="Mine 1 iron ore",
+    #     reasoning="Need iron ore",
+    #     context="What are the blocks that I can find in the forest in Minecraft?",
+    # )
 
-    critique = "The code is not working as expected. The bot is not mining the wood log."
+    # critique = "The code is not working as expected. The bot is not mining the wood log."
 
-    code = planner.generate_code(skillset, code_snippet, observation, task, critique)
-    print(code)
+    # code = planner.generate_code(skillset, code_snippet, observation, task, critique)
+    # print(code)

@@ -1,0 +1,30 @@
+# Core
+fastapi
+uvicorn[standard]
+python-dotenv
+requests
+httpx
+websockets
+
+# Google
+google-generativeai
+langchain-google-genai
+
+# LangChain
+langchain-core
+langchain-community
+langchain-ollama
+langchain-chroma
+langchain-huggingface
+sentence-transformers
+tiktoken
+
+# VectorDB
+chromadb>=0.4.0
+
+# LLM Providers
+ollama
+
+# Other
+numpy>=1.24.0
+pydantic>=2.0.0

@@ -1,5 +1,7 @@
 from __future__ import annotations
 from abc import ABC, abstractmethod
+from typing import Sequence
+from domain.models import Skill
 
 
 class DatabasePort(ABC):
@@ -20,3 +22,15 @@ class DatabasePort(ABC):
     @abstractmethod
     def store(self, key: str, value: str) -> None:
         """Store a new query in the database."""
+
+    @abstractmethod
+    async def add(self, documents: Sequence[Skill]):
+        pass
+
+    @abstractmethod
+    async def query(self, query: str) -> Sequence[Skill]:
+        pass
+
+    @abstractmethod
+    async def clear(self) -> None:
+        pass

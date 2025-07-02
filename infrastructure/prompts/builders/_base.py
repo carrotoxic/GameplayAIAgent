@@ -16,6 +16,7 @@ class _BasePromptBuilder(PromptBuilderPort, ABC):
     def build_prompt(self, **kw) -> SystemAndUserMsg:
         sys_msg = self._system_header(**kw)
         user_msg = self._compose_user(**kw)
+
         return sys_msg, user_msg
 
     # ----------------- hooks --------------------------

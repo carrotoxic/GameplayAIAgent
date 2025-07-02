@@ -1,108 +1,64 @@
-from __future__ import annotations
 import re
-from typing import Optional
-from domain.ports.parser_port import ParserPort
-from javascript import require
 from domain.models import CodeSnippet
-
-# Load JavaScript parser and code formatter
-babel = require("@babel/core")
-babel_generator = require("@babel/generator")
+from domain.ports import ParserPort
 
 class JSParser(ParserPort):
-    """
-    Convert a LLM reply like:
-    
-        Code:
-        ```javascript
-        // code
-        ```
+    def parse(self, text: str) -> CodeSnippet:
+        # Extract JavaScript code block
+        match = re.search(r"```(?:javascript|js)?(.*?)```", text, re.DOTALL)
+        code = match.group(1).strip() if match else text.strip()
 
-    into AST and then convert the AST into a justified javascript code.
-    and return a javascript code.
-    """
+        function_blocks = []
+        lines = code.splitlines()
+        in_func = False
+        brace_depth = 0
+        current_func = []
+        func_name = None
 
-    def parse(self, text: str) -> Optional[CodeSnippet]:
-        # Extract the JavaScript code block
-        match = re.search(r"```(?:javascript|js)(.*?)```", text, re.DOTALL)
-        if not match:
-            return None
-        code_text = match.group(1).strip()
-        if not code_text:
-            return None
+        for line in lines:
+            if not in_func:
+                match = re.match(r'\s*async\s+function\s+(\w+)\s*\(\s*bot\s*\)\s*\{', line)
+                if match:
+                    in_func = True
+                    brace_depth = 1
+                    func_name = match.group(1)
+                    current_func = [line]
+            else:
+                current_func.append(line)
+                brace_depth += line.count('{')
+                brace_depth -= line.count('}')
+                if brace_depth == 0:
+                    function_blocks.append((func_name, '\n'.join(current_func)))
+                    in_func = False
+                    current_func = []
+                    func_name = None
 
-        # Basic checks for security or invalid pattern
-        if 'async function' not in code_text or 'bot' not in code_text:
-            return None
-        if any(kw in code_text for kw in ["eval", "Function(", "while(true)"]):
-            return None
-
-        # Parse the code
-        try:
-            ast = babel.parse(code_text)
-        except Exception as e:
-            print(f"[JSParser] Babel parse error")
-            return None
-        functions = []
-        for node in ast.program.body:
-            if node.type != "FunctionDeclaration":
-                continue
-            is_async = getattr(node, "async", False)
-            function_type = "AsyncFunctionDeclaration" if is_async else "FunctionDeclaration"
-            try:
-                function_code = babel_generator.generate(node)["code"]
-            except Exception as e:
-                print(f"[JSParser] Babel generate error")
-                continue
-            functions.append({
-                "name": node.id.name,
-                "type": function_type,
-                "params": [param.name for param in node.params],
-                "body": function_code
-            })
-
-        # Pick the last valid async function with bot parameter
-        main_function = None
-        for function in reversed(functions):
-            if function["type"] == "AsyncFunctionDeclaration" and function["params"] == ["bot"]:
-                main_function = function
-                break
-
-        if main_function is None:
+        if not function_blocks:
             print("[JSParser] No valid async function(bot) found.")
-            return None
+            return CodeSnippet(function_name="unknown_function", main_function_code=code, execution_code=None)
 
-        # Assemble final code parts
-        main_function_code = "\n\n".join(f["body"] for f in functions)
-        execution_code = f"await {main_function['name']}(bot);"
+        # Combine all function bodies
+        main_function_code = "\n\n".join(body for _, body in function_blocks)
+        main_function_name = function_blocks[-1][0]
+        execution_code = f"await {main_function_name}(bot);"
 
         return CodeSnippet(
-            function_name=main_function["name"],
+            function_name=main_function_name,
             main_function_code=main_function_code,
             execution_code=execution_code
         )
 
-# ------------------------------------------------------------
-# Test
-# ------------------------------------------------------------
-if __name__ == "__main__":
-    parser = JSParser()
-    text = """
-    Code:
-    ```javascript
-    async function craftWoodenPickaxe(bot) {
-    // Check if we already have the required items
-    const hasOakLog = bot.inventory.has('oak_log');
-    const hasWoodenPickaxe = bot.inventory.has('wooden_pickaxe');
+    def extract_plan(self, llm_response: str) -> str:
+        match = re.search(
+            r"Plan:\s*((?:.|\n)*?)(?=\n(?:Explain|Thought|Code):)",
+            llm_response
+        )
+        return match.group(1) if match else ""
 
-    if (!hasOakLog || !hasWoodenPickaxe) {
-        // We don't have the required items, collect them first
-        await mineBlock(bot, 'oak_log', 1);
-        await craftItem(bot, 'wooden_pickaxe', 1);
-    }
 
-    bot.chat("Crafting wooden pickaxe...");
-    }
-    ```
-    """
-    print(parser.parse(text))
+    def extract_thought(self, llm_response: str) -> str:
+        match = re.search(
+            r"Explain:\s*((?:.|\n)*?)(?=\n(?:Plan|Thought|Code):)",
+            llm_response
+        )
+        return match.group(1).strip() if match else ""

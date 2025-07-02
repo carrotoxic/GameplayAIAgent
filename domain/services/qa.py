@@ -1,61 +1,74 @@
-from domain.ports.llm_port import LLMPort
-from domain.ports.prompt_builder_port import PromptBuilderPort
-from domain.ports.parser_port import ParserPort
-from domain.ports.database_port import DatabasePort
-from domain.models import Observation, Task
-from typing import List
+from typing import List, Optional, Sequence
+from ..ports import LLMPort, DatabasePort, PromptBuilderPort
+from ..models import Task, Observation, Message
+from ..ports.parser_port import ParserPort
 
 class QAService:
-    def __init__(
-        self,
-        llm: LLMPort,
-        question_prompt_builder: PromptBuilderPort,
-        answer_prompt_builder: PromptBuilderPort,
-        parser: ParserPort,
-        database: DatabasePort,
-    ):
+    """
+    Service for question answering.
+    """
+    def __init__(self,
+                 llm: LLMPort,
+                 question_prompt_builder: PromptBuilderPort,
+                 answer_prompt_builder: PromptBuilderPort,
+                 parser: ParserPort,
+                 database: DatabasePort,
+                 resume: bool = False
+                 ):
         self._llm = llm
         self._question_prompt_builder = question_prompt_builder
         self._answer_prompt_builder = answer_prompt_builder
         self._parser = parser
         self._database = database
+        self.question_answer_pairs: List[tuple[str, str]] = []
 
-    def generate_context(self, observation: Observation, completed_tasks: List[Task], failed_tasks: List[Task]) -> list[str]:
-        """Return 'Question / Answer' lines to insert into the prompt."""
-        questions = self.generate_questions(observation, completed_tasks, failed_tasks)
+        if resume and self._database:
+            # self.question_answer_pairs = self._database.load()
+            pass
 
-        qa_pairs = self.generate_qa_pairs(questions)
+    def get_question_answer_pairs(self, top_k: int) -> List[tuple[str, str]]:
+        return self.question_answer_pairs[-top_k:]
 
-        qa_text = ""
-        for qa in qa_pairs:
-            qa_text += qa + "\n"
-        qa_text = qa_text.rstrip("\n")
+    async def get_questions(self, observation: Observation, completed_tasks: List[Task], failed_tasks: List[Task]) -> Sequence[str]:
+        # Caching logic removed for now as it was based on a simple string context.
+        # A more sophisticated caching strategy would be needed for observation/task objects.
 
-        return qa_text
-
-    def generate_questions(self, observation: Observation, completed_tasks: List[Task], failed_tasks: List[Task]) -> list[str]:
-        """Generate questions based on the observation."""
-        system_msg, user_msg = self._question_prompt_builder.build_prompt(observation=observation, completed_tasks=completed_tasks, failed_tasks=failed_tasks)
-        llm_response = self._llm.chat([system_msg, user_msg])
-        questions = self._parser.parse(llm_response.content)
-
+        # Generate new questions
+        system_msg, user_msg = self._question_prompt_builder.build_prompt(
+            observation=observation,
+            completed_tasks=completed_tasks,
+            failed_tasks=failed_tasks,
+        )
+        response = await self._llm.chat([system_msg, user_msg])
+        questions = self._parser.parse(response.content)
+        
+        # Add the new questions to the database for future use if needed,
+        # but the query mechanism would need to be more advanced.
+        # await self._database.add(questions) 
         return questions
-    
 
-    def generate_qa_pairs(self, questions: list[str]) -> list[str]:
-        """Generate answers for each question."""
-        qa_pairs: list[str] = []
-        for idx, question in enumerate(questions):
-            cached = self._database.lookup(question)
-            if cached:
-                answer = cached
-            else:
-                system_msg, user_msg = self._answer_prompt_builder.build_prompt(question=question)
-                llm_response = self._llm.chat([system_msg, user_msg])
-                answer = llm_response.content
-                self._database.store(texts=[question], metadatas=[{"question": question}])
-            qa_pairs.append(f"Question {idx+1}: {question}\n{answer}")
-        return qa_pairs
+    async def get_answer(self, question: str) -> str:
+        system_msg, user_msg = self._answer_prompt_builder.build_prompt(question=question)
+        response = await self._llm.chat([system_msg, user_msg])
+        return response.content
+
+    async def generate_qa(self, observation: Observation, task: Task) -> List[tuple[str, str]]:
+        system_msg, user_msg = self._question_prompt_builder.build_prompt(
+            observation=observation,
+            task=task,
+        )
+        llm_response = await self._llm.chat([system_msg, user_msg])
+        questions = self._parser.parse(llm_response).content
+
+        for question in questions:
+            system_msg, user_msg = self._answer_prompt_builder.build_prompt(
+                question=question,
+                observation=observation,
+            )
+            answer = await self._llm.chat([system_msg, user_msg])
+            self.question_answer_pairs.append((question, answer.content))
+            
+        return self.question_answer_pairs
 
 if __name__ == "__main__":
 

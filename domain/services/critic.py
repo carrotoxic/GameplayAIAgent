@@ -1,5 +1,5 @@
-from domain.ports import LLMPort, ParserPort, PromptBuilderPort
-from domain.models import Task, Observation
+from ..models import Observation, Task
+from ..ports import LLMPort, PromptBuilderPort, ParserPort
 
 class CriticService:
     """
@@ -22,10 +22,10 @@ class CriticService:
         self._prompt_builder = prompt_builder
         self._parser = parser
 
-    def evaluate(self, observation: Observation, task: Task) -> tuple[bool, str]:
+    async def evaluate(self, observation: Observation, task: Task) -> tuple[bool, str]:
         system_msg, user_msg = self._prompt_builder.build_prompt(observation=observation, task=task)
-        llm_response = self._llm.chat([system_msg, user_msg])
-        success, critique = self._parser.parse(llm_response.content)
+        response = await self._llm.chat(messages=[system_msg, user_msg])
+        success, critique = self._parser.parse(response.content)
         return success, critique
 
 
@@ -33,7 +33,7 @@ class CriticService:
 # Test
 # ------------------------------------------------------------
 if __name__ == "__main__":
-    from domain.models import Task, Observation
+    from ..models import Task, Observation
     from infrastructure.adapters.llm.ollama_llm import LangchainOllamaLLM
     from infrastructure.prompts.registry import get
     from infrastructure.parsers import CriticParser

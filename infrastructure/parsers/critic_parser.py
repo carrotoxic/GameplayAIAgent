@@ -1,7 +1,7 @@
 from __future__ import annotations
 import json
+import re
 from domain.ports.parser_port import ParserPort
-
 
 class CriticParser(ParserPort):
     """
@@ -18,8 +18,12 @@ class CriticParser(ParserPort):
     """
 
     def parse(self, text: str) -> tuple[bool, str]:
+        # ―― strip Markdown fences like ```json … ``` or ``` … ```
+        match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.DOTALL)
+        json_str = match.group(1) if match else text.strip()
+        print(f"CriticParser: json_str: {json_str}")
         try:
-            data = json.loads(text)
+            data = json.loads(json_str)
             return bool(data["success"]), data.get("critique", "")
         except (json.JSONDecodeError, KeyError) as e:
             raise ValueError(f"Invalid LLM response format: {e}")

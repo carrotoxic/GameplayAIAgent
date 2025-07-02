@@ -21,9 +21,9 @@ class QAQuestionParser(ParserPort):
     def parse(self, text: str) -> List[str]:
         questions: list[str] = []
         for line in text.splitlines():
-            question = _QUESTION_LINE.match(line)
-            if question:
-                questions.append(question.group(1).strip())
+            question_match = _QUESTION_LINE.match(line)
+            if question_match:
+                questions.append(question_match.group(1).strip())
         return questions
 
 

@@ -1,10 +1,11 @@
 from dataclasses import dataclass
+from typing import Optional
 
 @dataclass
 class CodeSnippet:
     function_name: str
     main_function_code: str
-    execution_code: str
+    execution_code: Optional[str]
 
     def __str__(self):
         return f"function_name={self.function_name}\nmain_function_code={self.main_function_code}\nexecution_code={self.execution_code}"

@@ -1,156 +1,236 @@
-# 🧠 AI Gameplay Agent – Minecraft First
+# GameplayAI Agent
 
-This project is a **modular, LLM-powered AI agent** framework designed to play and learn in sandbox-style games, starting with **Minecraft**, and extensible to other environments like **Pokémon** or **custom RPGs**.
+A modular AI agent framework for autonomous gameplay in Minecraft, built with FastAPI, React, and mineflayer. The agent uses large language models for planning and decision-making while maintaining episodic, semantic, and procedural memory systems.
 
-Built using:
-- 🧱 **Clean + Hexagonal Architecture**
-- ⚙️ Modular Component Design
-- ⚡ LLM Planning + Multi-Memory System
-- 🗨️ Optional Chat-based Agent Collaboration
+## Architecture Overview
 
----
+The project follows a clean hexagonal architecture with clear separation of concerns:
 
-## 🚀 Features
+- **Domain Layer**: Core agent logic, memory systems, and business rules
+- **Application Layer**: Agent controller, composition, and event handling  
+- **Infrastructure Layer**: Adapters for LLMs, Minecraft, databases, and external services
+- **Presentation Layer**: React frontend and WebSocket APIs
 
-✅ Minecraft control via [Mineflayer]  
-✅ OpenAI / Mixtral / Local LLM support  
-✅ Memory system: Episodic, Semantic, Procedural  
-✅ Modular plugin-based game adapter  
-✅ Event-driven internal communication  
-✅ Clean separation of agent logic from game backend  
-✅ Extensible to multi-agent communication or new games
+## Key Components
 
----
+### Agent System
+- **Planner**: Generates executable code using LLM reasoning
+- **Critic**: Evaluates action outcomes and provides feedback
+- **Curriculum**: Manages task progression and difficulty scaling
+- **Memory System**: Maintains episodic events, semantic knowledge, and procedural skills
 
-## 🏛️ Architecture Summary
+### Minecraft Integration
+- **Mineflayer Bot**: Handles Minecraft server interaction
+- **World Viewer**: Real-time 3D visualization of the bot's perspective
+- **Inventory Manager**: Visual interface for bot's inventory state
+- **Primitive Skills**: Reusable code modules for common actions
 
-The architecture follows a **Hybrid MSOA + Clean Architecture** style:
+### Infrastructure
+- **LLM Adapters**: Support for OpenAI, Google Gemini, and Ollama
+- **Database**: ChromaDB for vector storage and retrieval
+- **WebSocket**: Real-time communication between components
+
+## Project Structure
 
 ```
+GameplayAIAgent/
+├── main.py                     # FastAPI application entry point
+├── application/                # Application orchestration
+│   ├── agent_controller.py     # Main agent control loop
+│   ├── composition.py          # Dependency injection
+│   └── event_bus.py           # Event handling system
+├── domain/                     # Core business logic
+│   ├── models/                # Domain models and entities
+│   ├── services/              # Core agent services
+│   │   ├── planner.py         # Code generation and planning
+│   │   ├── critic.py          # Action evaluation
+│   │   ├── curriculum.py      # Task management
+│   │   └── memory.py          # Memory systems
+│   ├── ports/                 # Interface definitions
+│   └── events/                # Domain events
+├── infrastructure/            # External integrations
+│   ├── adapters/              # Implementation of ports
+│   │   ├── llm/              # LLM provider adapters
+│   │   ├── database/         # ChromaDB adapter
+│   │   ├── game/             # Minecraft integration
+│   │   └── executor/         # Code execution
+│   ├── prompts/              # LLM prompt templates
+│   ├── primitive_skill/      # Reusable skill definitions
+│   └── websocket/            # WebSocket server
+├── frontend/                  # React user interface
+│   ├── src/
+│   │   ├── components/       # React components
+│   │   ├── hooks/            # Custom React hooks
+│   │   └── services/         # API communication
+│   └── dist/                 # Built frontend assets
+├── configs/                   # Configuration files
+└── tests/                    # Test suites
+```
 
-Presentation Layer   →   Application Layer   →   Domain Core   →   Infrastructure
-(CLI/WS/UI)              (AgentController)       (Planner, Memory Port)   (OpenAI, Mineflayer, FAISS)
+## Getting Started
 
-````
+### Prerequisites
 
-Each layer is fully decoupled and testable.
+- Python 3.11+
+- Node.js 18+
+- Docker (recommended)
+- Java 21 (for Minecraft server)
 
-🔧 **You can plug in:**
-- different games (e.g., Pokémon)
-- different LLMs (e.g., LLaMA, GPT-4, Claude)
-- different memory systems (e.g., LangChain, Chroma)
+### Installation
 
----
+1. **Clone the repository**
+   ```bash
+   git clone <repository-url>
+   cd GameplayAIAgent
+   ```
 
-## 🗂️ Project Structure
+2. **Set up environment variables**
+   ```bash
+   cp .env.example .env
+   # Edit .env with your API keys and configuration
+   ```
 
-| Directory        | Purpose                                                 |
-|------------------|----------------------------------------------------------|
-| `agent/`         | Agent orchestration + planning logic (Clean core)       |
-| `adapters/`      | Connect to real systems: LLM, Minecraft, Memory         |
-| `interface/`     | CLI / WebSocket APIs                                    |
-| `events/`        | Internal event bus for pub-sub system                   |
-| `prompts/`       | Prompt templates for LLM generation                     |
-| `configs/`       | YAML configs for different agent setups                 |
-| `scripts/`       | Launchers, evaluation, utilities                        |
-| `tests/`         | Unit & integration test suites                          |
+3. **Run with Docker (Recommended)**
+   ```bash
+   # Build the image
+   docker build -t gameplay-ai-agent .
+   
+   # Run with high memory allocation
+   docker run -d \
+     --name gameplay-ai-agent \
+     --memory=16g \
+     --cpus=4 \
+     -p 8000:8000 \
+     -p 3001:3001 \
+     -p 3002:3002 \
+     -e NODE_OPTIONS=--max-old-space-size=8192 \
+     --env-file .env \
+     gameplay-ai-agent
+   ```
 
----
+4. **Alternative: Local Development**
+   ```bash
+   # Install Python dependencies
+   pip install -r requirements.txt
+   
+   # Install Node.js dependencies
+   cd infrastructure/adapters/game/minecraft/mineflayer_server
+   npm install
+   cd ../../../../frontend
+   npm install && npm run build
+   
+   # Run the application
+   python main.py
+   ```
 
-## 📦 Requirements
+### Access Points
 
-- Python 3.9+
-- Node.js (for Mineflayer + bridge)
-- pip / Poetry
-- OpenAI or Together.ai API key (optional)
+Once running, access the application at:
 
----
+- **Main Interface**: http://localhost:8000
+- **World Viewer**: http://localhost:8000/viewer
+- **Inventory Panel**: http://localhost:8000/inventory
+- **API Documentation**: http://localhost:8000/docs
 
-## 🛠️ Setup
+## Configuration
 
-```bash
-git clone https://github.com/yourname/ai-agent.git
-cd ai-agent
+### LLM Providers
 
-# Install dependencies
-pip install -r requirements.txt
+Configure your preferred LLM provider in `configs/llm_config.yaml`:
 
-# Optional: run Mineflayer JS bot (you'll write bridge.js)
-node minecraft-bot/bridge.js
+```yaml
+llm:
+  provider: "openai"  # or "gemini", "ollama"
+  model: "gpt-4"
+  api_key: "${OPENAI_API_KEY}"
+```
 
-# Run the agent
-python scripts/launch_agent.py
-````
+### Agent Behavior
 
----
+Modify agent parameters in `configs/minecraft_config.yaml`:
 
-## 🧪 Testing
+```yaml
+agent:
+  max_iterations: 50
+  memory_retrieval_count: 5
+  warm_up_episodes: 3
+```
 
+## Features
+
+### Autonomous Gameplay
+- Automatic task decomposition and execution
+- Dynamic code generation for complex behaviors
+- Adaptive learning from successes and failures
+
+### Memory Systems
+- **Episodic**: Stores specific experiences and outcomes
+- **Semantic**: Maintains factual knowledge about the game world
+- **Procedural**: Develops and refines reusable skills
+
+### Real-time Monitoring
+- Live world view from the bot's perspective
+- Inventory state visualization
+- Planning and execution logs
+- WebSocket-based real-time updates
+
+### Extensibility
+- Modular architecture supports new games and environments
+- Plugin system for custom skills and behaviors
+- Configurable LLM providers and memory backends
+
+## Development
+
+### Running Tests
 ```bash
 pytest tests/
 ```
 
----
+### Building Frontend
+```bash
+cd frontend
+npm run build
+```
 
-## 🌍 Extending to Other Games
+### API Development
+The FastAPI application provides REST endpoints and WebSocket connections for:
+- Agent control (start/stop/reset)
+- Real-time state monitoring
+- Configuration management
 
-To support new games:
+## Deployment
 
-1. Implement a new `GameEnvPort` adapter:
+### Docker Production Build
+```bash
+docker build -t gameplay-ai-agent:latest .
+docker run -d \
+  --name gameplay-ai-agent-prod \
+  --memory=16g \
+  --cpus=4 \
+  -p 8000:8000 \
+  --env-file .env \
+  --restart unless-stopped \
+  gameplay-ai-agent:latest
+```
 
-   ```python
-   class PokemonAdapter(GameEnvPort):
-       def observe(self): ...
-       def execute_action(self, code): ...
-   ```
-2. Add new YAML config in `configs/`
-3. Optionally define new prompt templates
+### Google Cloud Run
+The application is configured for Cloud Run deployment with proper health checks and resource limits.
 
-No changes needed to the core agent logic.
+## Contributing
 
----
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests for new functionality
+5. Submit a pull request
 
-## 🧠 Key Concepts
+## License
 
-| Concept               | Description                                              |
-| --------------------- | -------------------------------------------------------- |
-| **Beliefs**           | Agent's internal view of the game world                  |
-| **Desires**           | Goals (e.g., “mine wood”)                                |
-| **Intentions**        | Concrete actions to achieve goals                        |
-| **Episodic Memory**   | Stores past events, failures, successes                  |
-| **Semantic Memory**   | Stores distilled facts ("dirt can be mined bare-handed") |
-| **Procedural Memory** | Stores reusable code (skills)                            |
+MIT License - see LICENSE file for details.
 
----
+## Acknowledgments
 
-## 📄 License
+This project builds upon research in autonomous agents and reinforcement learning:
 
-MIT License
-
----
-
-## 📬 Contact
-
-Built with 💪 by \[Shinichi Arimura]
-Twitter / GitHub / Email links here
-
-
----
-
-## 📚 References
-
-This project is inspired by the following works:
-
-- **Voyager: An Open-Ended Embodied Agent with LLMs**  
-  Zhou, X., et al. (2023)  
-  [arXiv:2305.16291](https://arxiv.org/abs/2305.16291)
-
-- **MindForge: A Modular Agent Architecture for Minecraft and Beyond**  
-  Heng, T., et al. (2023)  
-  [arXiv:2310.02296](https://arxiv.org/abs/2310.02296)
-
-- **ReAct: Synergizing Reasoning and Acting in Language Models**  
-  Yao, S., et al. (2022)  
-  [arXiv:2210.03629](https://arxiv.org/abs/2210.03629)
-
-> If you use or extend this project, please consider citing those original works.
+- Voyager: An Open-Ended Embodied Agent with Large Language Models
+- ReAct: Synergizing Reasoning and Acting in Language Models
