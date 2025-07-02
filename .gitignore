@@ -1,4 +1,14 @@
-# === Python ===
+# Environment variables and secrets
+.env
+.env.*
+config.ini
+secrets.json
+credentials.json
+*.key
+*.pem
+*.p12
+
+# Python
 __pycache__/
 *.py[cod]
 *.so
@@ -6,50 +16,109 @@ __pycache__/
 *.egg-info/
 dist/
 build/
-.env
-.env.*
-
-# Virtual envs
+.pytest_cache/
+.coverage
+.mypy_cache/
+.tox/
 .venv/
 venv/
 ENV/
 env/
-pip-wheel-metadata/
 
-# === Node.js ===
+# Node.js
 node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+package-lock.json
 
-# === IDEs & Editors ===
+# Frontend build artifacts
+frontend/dist/
+frontend/node_modules/
+
+# IDEs and Editors
 .vscode/
 .idea/
-.DS_Store
 *.swp
+*.swo
+*~
+.sublime-project
+.sublime-workspace
 
-# === Logs & Artifacts ===
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+desktop.ini
+
+# Logs and temporary files
 *.log
 logs/
 *.out
+*.err
+*.pid
+*.tmp
+*.temp
+*.bak
+*.backup
+tmp/
+temp/
 
-# === Test cache ===
-.cache/
-.tox/
-.pytest_cache/
+# Java/Minecraft
+*.class
+hs_err_pid*
 
-# === Misc ===
-__snapshots__/
-coverage/
-htmlcov/
-.mypy_cache/
+# Minecraft server files (keep essential configs, ignore runtime data)
+world/
+crash-reports/
+server.log*
+usercache.json
 
-# === Checkpoints ===
+# Docker and deployment
+build.tar.gz
+*.tar
+*.tar.gz
+*.zip
+
+# AI/ML artifacts
 ckpt/
+vectordb/
+chroma_db/
+faiss_index/
+models/
+checkpoints/
+weights/
+*.ckpt
+*.pt
+*.pth
+*.model
+*.weights
+*.h5
+*.hdf5
+*.pkl
+*.pickle
 
-# === reference code ===
+# Data files
+data/
+datasets/
+*.csv
+*.xml
+
+# Reference and documentation
 Voyager-main/
 
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
 
-# === server related files ===
-infrastructure/adapters/game/minecraft/mineflayer_server/
+# Test coverage
+htmlcov/
+coverage.xml
+*.cover
+
+# Memory dumps
+*.dmp
+*.hprof

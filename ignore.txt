@@ -1,0 +1,17 @@
+tar -czvf build.tar.gz `
+  --exclude='./node_modules' `
+  --exclude='./frontend/node_modules' `
+  --exclude='./infrastructure/adapters/game/minecraft/mineflayer_server/node_modules' `
+  --exclude='*/__pycache__' `
+  --exclude='.git' `
+  --exclude='.gitignore' `
+  --exclude='.idea' `
+  --exclude='.vscode' `
+  --exclude='.env' `
+  --exclude='*.pyc' `
+  --exclude='*.egg-info' `
+  --exclude='./venv' `
+  --exclude='venv' `
+  --exclude='./.venv' `
+  --exclude='.venv' `
+  .

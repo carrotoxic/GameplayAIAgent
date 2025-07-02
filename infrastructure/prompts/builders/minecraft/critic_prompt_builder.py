@@ -15,15 +15,20 @@ class CriticPromptBuilder(_BasePromptBuilder):
         )
 
     def _compose_user(self, **kw) -> Message:
+        # remove the execution error and chat log from the observation
         observation = kw["observation"]
+        obs_text = "\n".join(
+            line for line in str(observation).splitlines()
+            if not line.startswith("Execution error:") and not line.startswith("Chat log:")
+        )
         task = kw["task"]
 
         return Message(
             role="user",
             content=(
-                f"{observation}\n\n"
-                f"Task: {task.command}\n\n"
-                f"Context: {task.context}"
+                f"{obs_text}\n"
+                f"Task: {task.command}\n"
+                f"Context: \n[{task.context}]"
             )
         )
 
@@ -47,9 +52,7 @@ if __name__ == "__main__":
         position={"x": 10.5, "y": 64.0, "z": -5.2},
         equipment="leather_helmet",
         inventory="oak_log: 3, wooden_pickaxe: 1",
-        chests={"Chest 1": "iron_ingot: 8", "Chest 2": "iron_ingot: 8"},
-        error_message="Evaluation error: Runtime error: Took to long to decide path to goal!",
-        chat_message="Explore success.",
+        chests={"Chest 1": "iron_ingot: 8", "Chest 2": "iron_ingot: 8"}
     )
 
     critic_builder = CriticPromptBuilder()

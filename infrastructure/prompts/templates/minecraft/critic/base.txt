@@ -4,8 +4,6 @@ You are required to evaluate if I have met the task requirements. Exceeding the 
 
 I will give you the following information:
 
-Execution error: The error message if the task failed. Check this first to understand what went wrong during execution.
-Chat log: Messages the agent said during the task.
 Biome: The biome after the task execution.
 Time: The current time.
 Nearby blocks: The surrounding blocks. These blocks are not collected yet. However, this is useful for some placing or planting tasks.

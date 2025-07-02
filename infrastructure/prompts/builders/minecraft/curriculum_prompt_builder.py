@@ -1,5 +1,4 @@
 from __future__ import annotations
-from typing import Sequence
 from infrastructure.prompts.builders._base import _BasePromptBuilder
 from domain.models import Message
 from infrastructure.utils import load_prompt
@@ -25,8 +24,8 @@ class CurriculumPromptBuilder(_BasePromptBuilder):
             role="user",
             content=(
                 f"{qa_text}\n\n"
-                f"{observation}\n\n"
-                f"Completed tasks: {', '.join(task.command for task in completed_tasks)}\n\n"
+                f"{observation}\n"
+                f"Completed tasks: {', '.join(task.command for task in completed_tasks)}\n"
                 f"Failed tasks: {', '.join(task.command for task in failed_tasks)}"
             )
         )

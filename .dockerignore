@@ -1,0 +1,11 @@
+node_modules/
+*/node_modules/
+**/__pycache__
+.git
+.gitignore
+.idea
+.vscode
+*.pyc
+*.egg-info
+frontend/dist
+frontend/node_modules

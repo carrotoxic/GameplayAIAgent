@@ -1,7 +1,10 @@
+console.log("--- Starting Mineflayer Express Server Script ---");
+
 const fs = require("fs");
 const express = require("express");
 const bodyParser = require("body-parser");
 const mineflayer = require("mineflayer");
+const vm = require("vm");
 
 const skills = require("./lib/skillLoader");
 const { initCounter, getNextTime } = require("./lib/utils");
@@ -14,9 +17,15 @@ const Inventory = require("./lib/observation/inventory");
 const OnSave = require("./lib/observation/onSave");
 const Chests = require("./lib/observation/chests");
 const { plugin: tool } = require("mineflayer-tool");
-const { mineflayer: mineflayerViewer } = require("prismarine-viewer");
+const { Vec3 } = require("vec3");
+const { mineflayer: MineflayerViewer } = require('prismarine-viewer')
+const inventoryViewer = require('mineflayer-web-inventory');
+const path = require('path');
+
+console.log("--- All modules loaded ---");
 
 let bot = null;
+let mcData;
 
 const app = express();
 
@@ -24,49 +33,72 @@ app.use(bodyParser.json({ limit: "50mb" }));
 app.use(bodyParser.urlencoded({ limit: "50mb", extended: false }));
 
 app.post("/start", (req, res) => {
-    const v8 = require('v8');
+    console.log("--- Received POST /start ---");
+    console.log("Request body:", req.body);
 
-    const heapLimitMB = v8.getHeapStatistics().heap_size_limit / 1024 / 1024;
-    console.log(`🧠 Heap memory limit: ${Math.round(heapLimitMB)} MB`);
-
-    const used = process.memoryUsage().heapUsed / 1024 / 1024;
-    console.log(`💾 Heap used: ${Math.round(used * 100) / 100} MB`);
     if (bot) onDisconnect("Restarting bot");
     bot = null;
+
+    console.log("--- Creating bot ---");
     bot = mineflayer.createBot({
         host: "localhost", // minecraft server ip
         port: req.body.port, // minecraft server port
         username: "bot",
+        version: "1.18.1",
+        viewDistance: 'far',
         disableChatSigning: true,
-        checkTimeoutInterval: 60 * 60 * 1000,
+        checkTimeoutInterval: 10 * 60 * 1000,
     });
-    bot.once("error", onConnectionFailed);
-
+    inventoryViewer(bot, { port: 3002, host: '0.0.0.0' });
+    
+    // Initialize mcData immediately since we know the version
+    mcData = require("minecraft-data")("1.18.1");
+    console.log("✅ mcData initialized for version 1.18.1");
+    
+    bot.once("error", (err) => {
+        onConnectionFailed(err);
+        if (!res.headersSent) {
+            res.status(500).json({ error: "Bot connection failed", message: err.message });
+        }
+    });
+    
     // Event subscriptions
     bot.waitTicks = req.body.waitTicks;
     bot.globalTickCounter = 0;
     bot.stuckTickCounter = 0;
     bot.stuckPosList = [];
     bot.iron_pickaxe = false;
-
+    
     bot.on("kicked", onDisconnect);
-
+    
     // mounting will cause physicsTick to stop
     bot.on("mount", () => {
         bot.dismount();
     });
-
+    
     bot.on("error", (err) => {
         console.error("Bot error:", err);
     });
-
+    
     bot.once("spawn", async () => {
+        console.log("--- Bot spawn event fired ---");
         bot.removeListener("error", onConnectionFailed);
         console.log("✅ Bot spawned");
 
-        //use the link to view the bot's view: http://localhost:3001/
-        mineflayerViewer(bot, { port: 3001, firstPerson: false });
+        MineflayerViewer(bot, {
+            port: 3001,
+            firstPerson: true,
+            host: '0.0.0.0',
+            viewDistance: 10,
+
+            version: "1.18.1",
+
+            staticPath: path.join(__dirname, 'node_modules/prismarine-viewer/public')
+        });
+        
+        console.log("--- MineflayerViewer started on port 3001 ---");
         await bot.waitForTicks(10);
+        bot.chat('/tick freeze');
 
         let itemTicks = 1;
         if (req.body.reset === "hard") {
@@ -121,8 +153,54 @@ app.post("/start", (req, res) => {
         bot.loadPlugin(collectBlock);
         bot.loadPlugin(pvp);
 
-        // bot.collectBlock.movements.digCost = 0;
-        // bot.collectBlock.movements.placeCost = 0;
+        function onStuck(posThreshold) {
+            const currentPos = bot.entity.position;
+            bot.stuckPosList.push(currentPos);
+    
+            // Check if the list is full
+            if (bot.stuckPosList.length === 5) {
+                const oldestPos = bot.stuckPosList[0];
+                const posDifference = currentPos.distanceTo(oldestPos);
+    
+                if (posDifference < posThreshold) {
+                    teleportBot(); // execute the function
+                }
+    
+                // Remove the oldest time from the list
+                bot.stuckPosList.shift();
+            }
+        }
+    
+        function teleportBot() {
+            const blocks = bot.findBlocks({
+                matching: (block) => {
+                    return block.type === 0;
+                },
+                maxDistance: 1,
+                count: 27,
+            });
+    
+            if (blocks) {
+                // console.log(blocks.length);
+                const randomIndex = Math.floor(Math.random() * blocks.length);
+                const block = blocks[randomIndex];
+                bot.chat(`/tp @s ${block.x} ${block.y} ${block.z}`);
+            } else {
+                bot.chat("/tp @s ~ ~1.25 ~");
+            }
+        }
+
+        function onTick() {
+            bot.globalTickCounter++;
+            if (bot.pathfinder?.isMoving()) {
+              bot.stuckTickCounter++;
+              if (bot.stuckTickCounter >= 100) { // ~5 s
+                onStuck(1.5);                    // teleport rescue
+                bot.stuckTickCounter = 0;
+              }
+            }
+          }
+          bot.on("physicsTick", onTick);
 
         obs.inject(bot, [
             OnChat,
@@ -153,34 +231,56 @@ app.post("/start", (req, res) => {
         }
 
         initCounter(bot);
+        
+        // Bot is now an operator (configured in ops.json) to bypass spam protection
+        console.log("Bot has operator permissions to bypass rate limits");
+        
         bot.chat("/gamerule keepInventory true");
         bot.chat("/gamerule doDaylightCycle false");
 
+        console.log("--- Sending response for /start ---");
+        if (!res.headersSent) {
+            res.json(bot.observe());
+        }
     });
 
-    function onConnectionFailed(e) {
-        console.log(e);
-        bot = null;
-        res.status(400).json({ error: e });
+    function onConnectionFailed(err) {
+        console.error(`--- Bot connection failed ---`);
+        console.error(err);
+        onDisconnect(`Connection failed: ${err.message}`);
     }
     function onDisconnect(message) {
+        console.log(`Bot disconnected: ${message}`);
         if (bot.viewer) {
             bot.viewer.close();
         }
+        if (bot.webInventory) {
+            bot.webInventory.stop();
+        }
         bot.removeAllListeners();
         bot.end();
-        console.log(message);
         bot = null;
     }
 });
 
 app.post("/step", async (req, res) => {
+    // Check if bot exists and is properly initialized
+    if (!bot) {
+        return res.status(400).json({ error: "Bot not spawned" });
+    }
+    if (!mcData) {
+        return res.status(400).json({ error: "Bot not fully initialized - mcData not available" });
+    }
+    
     // import useful package
     let response_sent = false;
+    const globalAC = new AbortController();
     function otherError(err) {
+        bot.chat('/tick freeze');
         console.log("Uncaught Error");
         bot.emit("error", handleError(err));
         bot.waitForTicks(bot.waitTicks).then(() => {
+            globalAC.abort();
             if (!response_sent) {
                 response_sent = true;
                 res.json(bot.observe());
@@ -188,7 +288,6 @@ app.post("/step", async (req, res) => {
         });
     }
 
-    const mcData = require("minecraft-data")(bot.version);
     mcData.itemsByName["leather_cap"] = mcData.itemsByName["leather_helmet"];
     mcData.itemsByName["leather_tunic"] =
         mcData.itemsByName["leather_chestplate"];
@@ -197,6 +296,7 @@ app.post("/step", async (req, res) => {
     mcData.itemsByName["leather_boots"] = mcData.itemsByName["leather_boots"];
     mcData.itemsByName["lapis_lazuli_ore"] = mcData.itemsByName["lapis_ore"];
     mcData.blocksByName["lapis_lazuli_ore"] = mcData.blocksByName["lapis_ore"];
+
     const {
         Movements,
         goals: {
@@ -224,28 +324,10 @@ app.post("/step", async (req, res) => {
         SafeBlock,
         GoalPlaceBlockOptions,
     } = require("mineflayer-pathfinder");
-    const { Vec3 } = require("vec3");
 
     // Set up pathfinder
     const movements = new Movements(bot, mcData);
     bot.pathfinder.setMovements(movements);
-
-    bot.globalTickCounter = 0;
-    bot.stuckTickCounter = 0;
-    bot.stuckPosList = [];
-
-    function onTick() {
-        bot.globalTickCounter++;
-        if (bot.pathfinder.isMoving()) {
-            bot.stuckTickCounter++;
-            if (bot.stuckTickCounter >= 100) {
-                onStuck(1.5);
-                bot.stuckTickCounter = 0;
-            }
-        }
-    }
-
-    bot.on("physicsTick", onTick);
 
     // initialize fail count
     let _craftItemFailCount = 0;
@@ -259,14 +341,16 @@ app.post("/step", async (req, res) => {
     const programs = req.body.programs;
     bot.cumulativeObs = [];
     await bot.waitForTicks(bot.waitTicks);
+    bot.chat('/tick unfreeze');
 
     let timeoutReached = false;
     const TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
     
     // Start the timer
     const timeout = setTimeout(() => {
+        bot.chat('/tick freeze');
         timeoutReached = true;
-        console.warn("Timeout reached: Code execution exceeded 5 minutes.");
+        console.warn("Timeout reached: Code execution exceeded 1 minute.");
         if (!response_sent) {
             response_sent = true;
             res.status(200).json([
@@ -278,28 +362,23 @@ app.post("/step", async (req, res) => {
     }, TIMEOUT_MS);
     
     // Run the code
-    console.log("⏳ Code execution starting...");
-    console.log(`💾 Heap before: ${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)} MB`);
-    const r = await evaluateCode(code, programs);
-    console.log(`✅ Code execution finished.`);
-    console.log(`💾 Heap after: ${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)} MB`);
-    
+    const r = await evaluateCode(code, programs, globalAC.signal);
+
     // Cancel timer if finished on time
     clearTimeout(timeout);
     process.off("uncaughtException", otherError);
     
     // Emit error if code failed, but not due to timeout
-    if (!timeoutReached && r !== "success") {
+    if (r !== "success") {
         const errMsg = handleError(r);
-        bot.cumulativeObs.push([
-            "onError",
-            Object.assign({ onError: errMsg }, bot.observe?.() || {})
-        ]);
+        const errorObs = ["onError", Object.assign({ onError: errMsg }, bot.observe?.() || {})];
+        bot.cumulativeObs.push(errorObs);
     }
 
     await returnItems();
     // wait for last message
-    await bot.waitForTicks(bot.waitTicks);
+    await bot.waitForTicks(bot.waitTicks)
+    bot.chat('/tick freeze');
     if (!response_sent) {
         response_sent = true;
         try {
@@ -322,63 +401,70 @@ app.post("/step", async (req, res) => {
                 ...bot.observe()
             ]);
         }
+        bot.cumulativeObs.length = 0; // clear the cumulative observations
     }    
-    bot.removeListener("physicsTick", onTick);
-
-    async function evaluateCode(code, programs) {
-        try {
-            const wrappedCode = `(async () => {
-                try {
-                    ${programs}
-                    ${code}
-                } catch (innerError) {
-                    throw new Error("Runtime error: " + innerError.message);
-                }
-            })()`;
     
-            await eval(wrappedCode);
-            return "success";
-        } catch (err) {
-            return new Error("Evaluation error: " + (err?.message || String(err)));
+    async function evaluateCode(code, programs, externalSignal) {
+        const sandbox = {
+            bot,
+            mcData,
+            Vec3: require("vec3").Vec3,
+            console,
+            require,                     
+            setTimeout,  clearTimeout,
+            setInterval, clearInterval,
+
+            Movements,
+            Goal,
+            GoalBlock,
+            GoalNear,
+            GoalXZ,
+            GoalNearXZ,
+            GoalY,
+            GoalGetToBlock,
+            GoalLookAtBlock,
+            GoalBreakBlock,
+            GoalCompositeAny,
+            GoalCompositeAll,
+            GoalInvert,
+            GoalFollow,
+            GoalPlaceBlock,
+            pathfinder,
+            Move,
+            ComputedPath,
+            PartiallyComputedPath,
+            XZCoordinates,
+            XYZCoordinates,
+            SafeBlock,
+            GoalPlaceBlockOptions,
+        };
+
+        const context = vm.createContext(sandbox);
+      
+        const ac = new AbortController();
+        const combined = AbortSignal.any([ac.signal, externalSignal]);
+        const watchdog = setTimeout(() => ac.abort(), 3000);   // 3-s hard cap
+      
+        const src = `(async () => {
+          try {
+            ${programs}
+            ${code}
+          } catch (e) {
+            throw new Error("Runtime error: " + e.message);
+          }
+        })()`;
+      
+        try {
+          await new vm.Script(src, { filename: 'user_code.js' })
+                  .runInContext(context, { signal: combined, timeout: 3000 });
+          clearTimeout(watchdog);
+          return 'success';
+        } catch (e) {
+          clearTimeout(watchdog);
+          if (e.code === 'ABORT_ERR') return new Error('TimeoutError: user code exceeded 3000 ms');
+          return new Error('Evaluation error: ' + e.message);
         }
-    }
-
-    function onStuck(posThreshold) {
-        const currentPos = bot.entity.position;
-        bot.stuckPosList.push(currentPos);
-
-        // Check if the list is full
-        if (bot.stuckPosList.length === 5) {
-            const oldestPos = bot.stuckPosList[0];
-            const posDifference = currentPos.distanceTo(oldestPos);
-
-            if (posDifference < posThreshold) {
-                teleportBot(); // execute the function
-            }
-
-            // Remove the oldest time from the list
-            bot.stuckPosList.shift();
-        }
-    }
-
-    function teleportBot() {
-        const blocks = bot.findBlocks({
-            matching: (block) => {
-                return block.type === 0;
-            },
-            maxDistance: 1,
-            count: 27,
-        });
-
-        if (blocks) {
-            // console.log(blocks.length);
-            const randomIndex = Math.floor(Math.random() * blocks.length);
-            const block = blocks[randomIndex];
-            bot.chat(`/tp @s ${block.x} ${block.y} ${block.z}`);
-        } else {
-            bot.chat("/tp @s ~ ~1.25 ~");
-        }
-    }
+      }
 
     function returnItems() {
         bot.chat("/gamerule doTileDrops false");
@@ -489,9 +575,9 @@ app.post("/pause", (req, res) => {
     });
 });
 
-// Server listening to PORT 3000
-const DEFAULT_PORT = 3000;
-const PORT = process.argv[2] || DEFAULT_PORT;
-app.listen(PORT, () => {
-    console.log(`Server started on port ${PORT}`);
+console.log("--- Express routes configured ---");
+
+const port = 3000;
+app.listen(port, () => {
+    console.log(`✅ Mineflayer Express Server is running on port ${port}`);
 });

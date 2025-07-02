@@ -1,7 +1,12 @@
-from domain.services import CurriculumService, CriticService, PlannerService, SkillService
-from infrastructure.utils import load_skills
+import asyncio
+import logging
+from dataclasses import asdict
+from typing import Optional
+
 from domain.ports import GameEnvironmentPort
-from domain.models import CodeSnippet
+from domain.services import CriticService, CurriculumService, PlannerService, SkillService
+from infrastructure.utils import load_skills
+from infrastructure.websocket.agent_ws_server import manager as websocket_manager
 
 class AgentController:
     def __init__(self, 
@@ -18,102 +23,200 @@ class AgentController:
         self._critic_service = critic_service
         self._env = env
         self._primitive_skill_dir = primitive_skill_dir
+        self._running_task = None
+        self._is_running = False
 
-    def run(self, max_tries_per_task: int = 5):
+    def start(self):
+        logging.info("--- AGENT START CALLED ---")
+        if self._is_running:
+            logging.warning("Agent is already running. Ignoring start command.")
+            return
 
-        # TODO: fix A fatal JavaScript heap out-of-memory crash
-        # TODO: revise the chest observation
-        # TODO: fix the skillset retrieval
-        # TODO: check all the prompt generated
+        self._is_running = True
+        self._running_task = asyncio.create_task(self._run_loop())
+        logging.info("Agent run loop started in background.")
 
+    async def stop(self):
+        if not self._running_task or self._running_task.done():
+            print("Agent is not running.")
+            return
 
+        self._running_task.cancel()
+        try:
+            await self._running_task
+        except asyncio.CancelledError:
+            print("Agent task was successfully cancelled.")
 
-        '''
-        Primitive skills refer to the core skill functions provided to the agent from the start.
-            `definitions`: full function implementations, including any necessary helper logic.
-            `usage`: example usage snippets of these skills, used as context for the planner/LLM.
-          Return a list of Skill Value Objects
-        '''
-        print("AgentController: loading primitive skills")
-        primitive_skillset_definitions = load_skills(self._primitive_skill_dir + "/definitions")
-        primitive_skillset_usage = load_skills(self._primitive_skill_dir + "/usage")
-        print("AgentController: primitive skills loaded")
-        # continue to generate task until manually stopped
-        while True:
-            # reset the environment when the agent finished the previous task
-            observation = self._env.reset({
+        await self._env.close()
+        self._running_task = None
+        self._is_running = False
+        print("Agent stopped and environment closed.")
+
+    async def restart(self):
+        await self.stop()
+        self.start()
+
+    async def _run_loop(self, max_tries_per_task: int = 5):
+        try:
+            logging.info(f"--- Starting agent run loop ---")
+            await self._skill_service.clear()
+            primitive_skillset_definitions = load_skills(self._primitive_skill_dir + "/definitions")
+            primitive_skillset_usage = load_skills(self._primitive_skill_dir + "/usage")
+
+            logging.info("Resetting environment...")
+            observation = await self._env.reset({
                 "port": 25565,
                 "waitTicks": 5,
                 "reset": "hard"
             })
-            print("AgentController: generating task")
-            task = self._curriculum_service.next_task(observation)
-            print(f"AgentController: task: {task.command}")
-
-            # initialize the local variables
-            try_count = 0
-            success = False
-            code_snippet = None
-            critique = None
+            logging.info("Environment reset complete. Observation received.")
             
-            # continue to generate code snippet until the task is completed or failed for max tries
-            while try_count < max_tries_per_task and not success:
-                print("AgentController: retrieving skillset")
-                # retrieve the skillset relevant to the current task
-                retrieved_skillset = self._skill_service.retrieve_skillset(task)
-                print(f"AgentController: skillset retrieved: {retrieved_skillset}")
-                skillset_context = primitive_skillset_usage + retrieved_skillset
-                
-                # llm generate execution code based on the current situation
-                print("AgentController: generating code snippet")
-                # TODO: enchance the prompt for planner
-                code_snippet = self._planner_service.generate_code(
-                    skillset_context,
-                    code_snippet,
-                    observation,
-                    task,
-                    critique
-                )
+            # Get the first task from the curriculum service
+            task = await self._curriculum_service.get_next_task(observation)
+            logging.info(f"First task from curriculum: '{task.command}'")
 
-                print(f"AgentController: code snippet generated")
-                # execute the code snippet using both primitive skills and retrieved skills
-                helper_functions = primitive_skillset_definitions + retrieved_skillset
-                if code_snippet is not None:
-                    print("AgentController: executing code snippet")
-                    observation = self._env.step(code_snippet, helper_functions)
-                    print(f"AgentController: observation generated")
-                else:
-                    print("AgentController: code snippet is None")
-                    observation.set_error_message("Code snippet is None")
+            while task:
+                logging.info(f"--- Starting task: {task.command} ---")
+                try_count = 0
+                success = False
+                code_snippet = None
+                critique: Optional[str] = None
+                chest_memory = {}
+
+                while try_count < max_tries_per_task and not success:
+                    logging.info(f"--- Task attempt {try_count + 1} ---")
+                    await websocket_manager.broadcast({
+                        "task": task.command,
+                        "code": code_snippet.function_name if code_snippet else "",
+                        "observation": asdict(observation),
+                        "success": success,
+                        "critique": critique if critique else "",
+                    })
+                    logging.info("Broadcasted state to websocket.")
+                    
+                    retrieved_skillset = await self._skill_service.retrieve_skillset(task)
+                    logging.info(f"Retrieved {len(retrieved_skillset)} skills for the task.")
+                    skillset_context = primitive_skillset_usage + retrieved_skillset
+                    
+                    logging.info("Generating code with planner...")
+                    code_snippet, llm_response = await self._planner_service.generate_code(
+                        skillset_context,
+                        code_snippet,
+                        observation,
+                        task,
+                        critique
+                    )
+
+                    plan = self._planner_service._parser.extract_plan(llm_response)
+                    thought = self._planner_service._parser.extract_thought(llm_response)
+
+                    logging.info(f"code_snippet: {code_snippet}")
+
+                    await websocket_manager.broadcast({
+                        "task": asdict(task),
+                        "plan": {
+                            "plan": plan,
+                            "thought": thought,
+                            "code": code_snippet.execution_code if code_snippet else "",
+                        },
+                        "skills": [asdict(skill) for skill in retrieved_skillset],
+                        "observation": asdict(observation),
+                        "success": success,
+                        "critique": critique if critique else "",
+                    })
+
+                    helper_functions = primitive_skillset_definitions + retrieved_skillset
+                    if code_snippet is not None:
+                        logging.info("Executing code in environment...")
+                        observation = await self._env.step(code_snippet, helper_functions)
+                        logging.info("Code execution finished.")
+                    else:
+                        logging.error("Planner failed to generate code.")
+                        observation.set_error_message("Code snippet is None")
+                        try_count += 1
+                        continue
+
+                    for position, chest in observation.chests.items():
+                        if chest == "Invalid":
+                            chest_memory.pop(position, None)
+                        elif isinstance(chest, dict):
+                            chest_memory[position] = chest
+                    observation.set_chests(chest_memory)
+
+                    logging.info("Evaluating with critic...")
+                    success, critique = await self._critic_service.evaluate(observation, task)
+                    logging.info(f"Critic evaluation: success={success}, critique='{critique}'")
+
+                    await websocket_manager.broadcast({
+                        "task": asdict(task),
+                        "plan": {
+                            "plan": plan,
+                            "thought": thought,
+                            "code": code_snippet.execution_code if code_snippet else "",
+                        },
+                        "skills": [asdict(skill) for skill in retrieved_skillset],
+                        "observation": asdict(observation),
+                        "success": success,
+                        "critique": critique if critique else "",
+                    })
+                    logging.info("Broadcasted final state to websocket.")
+
+                    logging.info(f"--- End of Try {try_count + 1} ---")
                     try_count += 1
-                    continue
-                
-                # llm decide if the task is successful or not, and provide a critique
-                print("AgentController: evaluating task")
-                success, critique = self._critic_service.evaluate(observation, task)
-                print("AgentController: task evaluated")
 
-                print(f"================================================")
-                print(f"AgentController: success: {success}")
-                print(f"AgentController: critique: {critique}")
-                print(f"================================================")
-                try_count += 1
-                print(f"AgentController: try count: {try_count}")
+                if success:
+                    logging.info(f"Task '{task.command}' completed successfully.")
+                    logging.info(f"Adding successful code to skill library: {code_snippet.function_name}")
+                    skill = await self._skill_service.describe_skill(code=code_snippet)
+                    await self._skill_service.add_skill(skill)
+                    self._curriculum_service.add_completed_task(task)
+                else:
+                    logging.warning(f"Task '{task.command}' failed after {max_tries_per_task} attempts.")
+                    self._curriculum_service.add_failed_task(task)
 
-            if success:
-                print("AgentController: task completed")
-                self._skill_service.add_skill(code_snippet)
-                self._curriculum_service.add_completed_task(task)
-            else:
-                print("AgentController: task failed")
-                self._curriculum_service.add_failed_task(task)
+                # Get the next task
+                task = await self._curriculum_service.get_next_task(observation)
+                if task:
+                    logging.info(f"New task from curriculum: '{task.command}'")
+                else:
+                    logging.info("Curriculum complete. No more tasks.")
 
+        except asyncio.CancelledError:
+            logging.info("Agent run loop cancelled.")
+            raise
+        except Exception as e:
+            logging.error(f"An unexpected error occurred in the run loop: {e}", exc_info=True)
+            raise
+        finally:
+            self._is_running = False
+            logging.info("--- Run loop finished. ---")
+
+
+async def main():
+    """A main function to run the agent controller for testing."""
+    from application.composition import build_agent
+    from dotenv import load_dotenv
+
+    load_dotenv()
+    
+    agent_controller = None
+    try:
+        agent_controller = build_agent(game="minecraft")
+        agent_controller.start()
+        if agent_controller._running_task:
+            await agent_controller._running_task
+            
+    except asyncio.CancelledError:
+        logging.info("Main task cancelled, which is expected on shutdown.")
+    except Exception as e:
+        logging.error(f"An error occurred during agent execution: {e}", exc_info=True)
+    finally:
+        if agent_controller and agent_controller._is_running:
+            logging.info("Stopping agent controller.")
+            await agent_controller.stop()
 
 if __name__ == "__main__":
-
-    # from domain.models import Event
-    from application.composition import build_agent
-
-    agent_controller = build_agent(game="minecraft")
-
-    agent_controller.run(max_tries_per_task=3)
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("Interrupted by user. Shutting down.")

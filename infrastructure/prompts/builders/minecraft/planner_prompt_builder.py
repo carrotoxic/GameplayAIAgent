@@ -38,10 +38,10 @@ class PlannerPromptBuilder(_BasePromptBuilder):
         return Message(
             role="user",
             content=(
-                f"Code from the last round: \n{code_snippet}\n\n"
-                f"{observation}\n\n"
-                f"Task: {task.command}\n\n"
-                f"Context: {task.context}\n\n"
+                f"Code from the last round: \n{code_snippet}\n"
+                f"{observation}\n"
+                f"Task: {task.command}\n"
+                f"Context: \n[{task.context}]\n"
                 f"Critique: {critique}"
             )
         )

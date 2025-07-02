@@ -1,6 +1,7 @@
-from abc import ABC, abstractmethod
+import abc
+from domain.models import CodeSnippet, Skill
 
-class GameEnvironmentPort(ABC):
+class GameEnvironmentPort(abc.ABC):
     """
     Hexagonal *inbound* port for interacting with any game environment.
 
@@ -10,17 +11,17 @@ class GameEnvironmentPort(ABC):
     - Optionally close/shutdown the environment
     """
 
-    @abstractmethod
-    def reset(self, options: dict = None) -> dict:
+    @abc.abstractmethod
+    async def reset(self, options=None) -> dict:
         """Reset the environment and return the initial Event observation."""
-        pass
+        raise NotImplementedError
 
-    @abstractmethod
-    def step(self, action: str = None) -> dict:
+    @abc.abstractmethod
+    async def step(self, code_snippet: CodeSnippet, helper_functions: list[Skill]) -> dict:
         """Execute one step in the environment using the provided action."""
-        pass
+        raise NotImplementedError
 
-    @abstractmethod
-    def close(self) -> None:
+    @abc.abstractmethod
+    async def close(self) -> None:
         """Shutdown the environment cleanly (if needed)."""
-        pass
+        raise NotImplementedError
